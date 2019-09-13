@@ -11,8 +11,14 @@ class CrowdedFieldTaskConfig(pexConfig.Config):
 
 class CrowdedFieldTask(pipeBase.CmdLineTask):
     ConfigClass = CrowdedFieldTaskConfig
-    RunnerClass = pipeBase.ButlerInitializedTaskRunner
+    RunnerClass = pipeBase.TaskRunner
     _DefaultName = "crowdedFieldTask"
+
+    def _getConfigName(self):
+        return None
+
+    def _getMetadataName(self):
+        return None
 
     def __init__(self, **kwargs):
         pipeBase.CmdLineTask.__init__(self, **kwargs)
@@ -22,6 +28,11 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         exposure = sensorRef.get("calexp")
 
         sources = sensorRef.get("src")
+
+
+        solver_matrix = CrowdedFieldMatrix(exposure.getMaskedImage(),
+                                           exposure.getPsf())
+        solver_matrix.addSources(sources['x'], sources['y'])
 
         self.log.info("end of runDataRef")
 
