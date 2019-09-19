@@ -40,9 +40,16 @@ void CrowdedFieldMatrix<PixelT>::addSource(double x, double y) {
 }
 
 template <typename PixelT>
-void CrowdedFieldMatrix<PixelT>::addSources(ndarray::Array<double const, 1>  x,
-                               ndarray::Array<double const, 1>  y) {
-    LOGL_WARN(_log, "Got first x,y values %g, %g", x[0], y[0]);
+void CrowdedFieldMatrix<PixelT>::addSources(ndarray::Array<double const, 1>  &x,
+                               ndarray::Array<double const, 1>  &y) {
+    LOGL_INFO(_log, "array length %i", x.getSize<0>());
+    if(x.getSize<0>() != y.getSize<0>()) {
+        throw LSST_EXCEPT(lsst::pex::exceptions::LengthError, "x and y must be the same length.");
+    }
+
+    for(int n = 0; n < x.getSize<0>(); n++) {
+        addSource(x[n], y[n]);
+    }
 }
 
 template <typename PixelT>

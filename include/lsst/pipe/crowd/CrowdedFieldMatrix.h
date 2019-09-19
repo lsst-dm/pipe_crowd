@@ -17,8 +17,8 @@ public:
 
     void addSource(double  x, double y);
 
-    void addSources(ndarray::Array<double const, 1>  x,
-               ndarray::Array<double const, 1>  y);
+    void addSources(ndarray::Array<double const, 1>  &x,
+               ndarray::Array<double const, 1>  &y);
 
     std::list<std::tuple<int, int, PixelT>> getMatrixEntries();
 
