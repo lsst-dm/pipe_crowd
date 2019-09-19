@@ -20,6 +20,8 @@ public:
     void addSources(ndarray::Array<double const, 1>  &x,
                ndarray::Array<double const, 1>  &y);
 
+    void solve();
+
     std::list<std::tuple<int, int, PixelT>> getMatrixEntries();
 
 private:
@@ -27,6 +29,7 @@ private:
     CONST_PTR(afw::image::Exposure<PixelT>) _exposure;
     std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
     int _nStars;
+    bool inputsFrozen;
 
 };
 

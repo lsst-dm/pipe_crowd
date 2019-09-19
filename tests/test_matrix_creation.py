@@ -39,4 +39,13 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         with self.assertRaises(lsst.pex.exceptions.wrappers.LengthError):
             matrix.addSources(x_arr, y_arr)
 
+    def test_frozenInputs(self):
+        matrix = CrowdedFieldMatrix(self.exposure)
+        matrix.addSource(200.0, 200.0)
+        matrix.solve()
+        with self.assertRaises(RuntimeError):
+            matrix.addSource(300.0, 300.0)
+
+
+
 

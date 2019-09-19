@@ -39,5 +39,7 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
                                  sources['slot_Centroid_y'][:10])
         print(solver_matrix.getMatrixEntries()[:10])
 
+        solver_matrix.solve()
+
         self.log.info("end of runDataRef")
 

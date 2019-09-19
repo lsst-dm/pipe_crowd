@@ -7,6 +7,8 @@
 #include "lsst/afw/detection/Psf.h"
 #include "lsst/afw/geom/Point.h"
 
+// #include "Eigen/IterativeLinearSolvers.h"
+
 using namespace lsst::afw;
 
 namespace lsst {
@@ -19,11 +21,16 @@ LOG_LOGGER _log = LOG_GET("pipe.crowd");
 template <typename PixelT>
 CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(CONST_PTR(afw::image::Exposure<PixelT>) exposure) :
             _exposure(exposure),
-            _nStars(0) { };
+            _nStars(0),
+            inputsFrozen(false) { };
     
 template <typename PixelT>
 void CrowdedFieldMatrix<PixelT>::addSource(double x, double y) {
     std::shared_ptr<detection::Psf::Image> psfImage;
+
+    if(inputsFrozen) {
+        throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "Cannot add sources after calling solve(); inputs frozen");
+    }
 
     psfImage = _exposure->getPsf()->computeImage(geom::Point2D(x, y));
     LOGL_INFO(_log, "PSF image size %i, %i", psfImage->getWidth(), psfImage->getHeight());
@@ -59,6 +66,12 @@ std::list<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getMatrixEnt
         output.push_back(std::tuple<int, int, PixelT>(ptr->col(), ptr->row(), ptr->value()));
     }
     return output;
+}
+
+template <typename PixelT>
+void CrowdedFieldMatrix<PixelT>::solve() {
+    inputsFrozen = true;
+
 }
 
 template class CrowdedFieldMatrix<float>;

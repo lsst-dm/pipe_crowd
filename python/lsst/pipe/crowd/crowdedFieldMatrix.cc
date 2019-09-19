@@ -27,6 +27,8 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
     clsCrowdedFieldMatrix.def("addSource", &CrowdedFieldMatrix<float>::addSource);
     clsCrowdedFieldMatrix.def("addSources", &CrowdedFieldMatrix<float>::addSources);
 
+    clsCrowdedFieldMatrix.def("solve", &CrowdedFieldMatrix<float>::solve);
+
     clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
 
 
