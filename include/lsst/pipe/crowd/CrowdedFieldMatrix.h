@@ -13,12 +13,18 @@ namespace crowd {
 template <typename PixelT>
 class CrowdedFieldMatrix {
 public:
-    CrowdedFieldMatrix(const afw::image::Exposure<PixelT>& exposure);
+    CrowdedFieldMatrix(const afw::image::Exposure<PixelT>& exposure,
+                       ndarray::Array<double const, 1>  &x,
+                       ndarray::Array<double const, 1>  &y);
 
-    void addSource(double  x, double y);
+    static void _addSource(const afw::image::Exposure<PixelT> &exposure, 
+                           std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
+                           int nStar, double  x, double y);
 
-    void addSources(ndarray::Array<double const, 1>  &x,
-               ndarray::Array<double const, 1>  &y);
+    static std::vector<Eigen::Triplet<PixelT>> _makeMatrixEntries(
+                       const afw::image::Exposure<PixelT> &exposure,
+                       ndarray::Array<double const, 1> &x,
+                       ndarray::Array<double const, 1> &y);
 
     void solve();
 
@@ -32,7 +38,6 @@ private:
     std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
     std::map<int, int> _pixelMapping;
     int _nStars;
-    bool _inputsFrozen;
     int _nRows;
     int _nColumns;
 

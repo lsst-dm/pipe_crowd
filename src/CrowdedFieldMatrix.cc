@@ -20,45 +20,45 @@ namespace crowd {
 LOG_LOGGER _log = LOG_GET("pipe.crowd");
 
 template <typename PixelT>
-CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT>&  exposure) :
+CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT> &exposure,
+                                               ndarray::Array<double const, 1> &x,
+                                               ndarray::Array<double const, 1> &y) :
             _exposure(exposure),
-            _nStars(0),
-            _inputsFrozen(false),
+            _matrixEntries(_makeMatrixEntries(exposure, x, y)),
             _nRows(0),
             _nColumns(0) { };
-    
-template <typename PixelT>
-void CrowdedFieldMatrix<PixelT>::addSource(double x, double y) {
-    std::shared_ptr<detection::Psf::Image> psfImage;
-
-    if(_inputsFrozen) {
-        throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "Cannot add sources after calling solve(); inputs frozen");
-    }
-
-    psfImage = _exposure.getPsf()->computeImage(geom::Point2D(x, y));
-    LOGL_INFO(_log, "PSF image size %i, %i", psfImage->getWidth(), psfImage->getHeight());
-
-    for (int y = 0; y != psfImage->getHeight(); ++y) {
-        for (int x = 0; x != psfImage->getWidth(); ++x) {
-            PixelT psfValue = psfImage->get(geom::Point2I(x,y), image::LOCAL);
-            int pixelIndex = _exposure.getMaskedImage().getHeight() * psfImage->indexToPosition(x, image::X) + psfImage->indexToPosition(y, image::Y);
-            _matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, _nStars, psfValue));
-        }
-    }
-    _nStars++;
-            
-}
 
 template <typename PixelT>
-void CrowdedFieldMatrix<PixelT>::addSources(ndarray::Array<double const, 1>  &x,
-                               ndarray::Array<double const, 1>  &y) {
-    LOGL_INFO(_log, "array length %i", x.getSize<0>());
+std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntries(const afw::image::Exposure<PixelT> &exposure,
+                                               ndarray::Array<double const, 1> &x,
+                                               ndarray::Array<double const, 1> &y) {
+
     if(x.getSize<0>() != y.getSize<0>()) {
         throw LSST_EXCEPT(lsst::pex::exceptions::LengthError, "x and y must be the same length.");
     }
 
-    for(size_t n = 0; n < x.getSize<0>(); n++) {
-        addSource(x[n], y[n]);
+    std::vector<Eigen::Triplet<PixelT>> matrixEntries;
+    size_t n;
+    for(n = 0; n < x.getSize<0>(); n++) {
+        _addSource(exposure, matrixEntries, (int) n, (double) x[n], (double) y[n]);
+    }
+    return matrixEntries;
+}
+    
+template <typename PixelT>
+void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &exposure, 
+                                            std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
+                                            int nStar, double x, double y) {
+    std::shared_ptr<detection::Psf::Image> psfImage;
+
+    psfImage = exposure.getPsf()->computeImage(geom::Point2D(x, y));
+
+    for (int y = 0; y != psfImage->getHeight(); ++y) {
+        for (int x = 0; x != psfImage->getWidth(); ++x) {
+            PixelT psfValue = psfImage->get(geom::Point2I(x,y), image::LOCAL);
+            int pixelIndex = exposure.getMaskedImage().getHeight() * psfImage->indexToPosition(x, image::X) + psfImage->indexToPosition(y, image::Y);
+            matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, nStar, psfValue));
+        }
     }
 }
 
@@ -82,8 +82,6 @@ std::map<int, int> CrowdedFieldMatrix<PixelT>::renameMatrixRows() {
     std::map<int, int> outputMap;
     std::map<int, int>::iterator mappingEntry;
     int pixelCounter = 0;
-
-    _inputsFrozen = true;
 
     for(auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
         mappingEntry = outputMap.find(ptr->row());
@@ -136,8 +134,6 @@ void CrowdedFieldMatrix<PixelT>::solve() {
     Eigen::SparseMatrix<PixelT> paramMatrix;
     Eigen::SparseMatrix<PixelT> dataMatrix;
     std::map<int, int> pixelMapping;
-
-    _inputsFrozen = true;
 
     _pixelMapping = renameMatrixRows();
 

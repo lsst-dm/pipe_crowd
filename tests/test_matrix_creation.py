@@ -19,16 +19,16 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
 
     def test_singleSource(self):
 
-        matrix = CrowdedFieldMatrix(self.exposure)
-        matrix.addSource(200.0, 200.0)
+        matrix = CrowdedFieldMatrix(self.exposure,
+                                    np.array([200.0]),
+                                    np.array([200.0]))
         self.assertGreater(len(matrix.getMatrixEntries()), 0)
 
     def test_multipleSources(self):
 
         x_arr = np.linspace(20.0, 60.0, 20)
         y_arr = np.linspace(30.0, 70.0, 20)
-        matrix = CrowdedFieldMatrix(self.exposure)
-        matrix.addSources(x_arr, y_arr)
+        matrix = CrowdedFieldMatrix(self.exposure, x_arr, y_arr)
 
         self.assertGreater(len(matrix.getMatrixEntries()), 0)
 
@@ -36,21 +36,13 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
 
         x_arr = np.linspace(20.0, 60.0, 20)
         y_arr = np.linspace(30.0, 70.0, 21)  #  Note 21 != 20
-        matrix = CrowdedFieldMatrix(self.exposure)
         with self.assertRaises(lsst.pex.exceptions.wrappers.LengthError):
-            matrix.addSources(x_arr, y_arr)
-
-    def test_frozenInputs(self):
-        matrix = CrowdedFieldMatrix(self.exposure)
-        matrix.addSource(200.0, 200.0)
-        matrix.solve()
-        with self.assertRaises(RuntimeError):
-            matrix.addSource(300.0, 300.0)
+            matrix = CrowdedFieldMatrix(self.exposure, x_arr, y_arr)
 
     def test_renameMatrixRows(self):
-        matrix = CrowdedFieldMatrix(self.exposure)
-        matrix.addSource(200.0, 200.0)
-        matrix.addSource(204.0, 204.0)
+        matrix = CrowdedFieldMatrix(self.exposure,
+                                    np.array([200.0, 200.0]),
+                                    np.array([204.0, 204.0]))
 
         pre_rename_entries = matrix.getMatrixEntries()
         matrix.renameMatrixRows()
@@ -72,9 +64,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
 
 
     def test_solve(self):
-        matrix = CrowdedFieldMatrix(self.exposure)
-        matrix.addSource(200.0, 200.0)
-        matrix.addSource(204.0, 204.0)
+        matrix = CrowdedFieldMatrix(self.exposure,
+                                    np.array([200.0, 200.0]),
+                                    np.array([204.0, 204.0]))
 
         matrix.solve()
 
