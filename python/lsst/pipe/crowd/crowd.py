@@ -34,8 +34,10 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
 
         solver_matrix = CrowdedFieldMatrix(exposure)
 
-        solver_matrix.addSources(sources['slot_Centroid_x'],
-                                 sources['slot_Centroid_y'])
+        solver_matrix.addSource(200.0, 200.0)
+        print(solver_matrix.getMatrixEntries()[:10])
+        # solver_matrix.addSources(sources['slot_Centroid_x'],
+        #                          sources['slot_Centroid_y'])
 
         self.log.info("end of runDataRef")
 

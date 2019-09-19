@@ -1,6 +1,10 @@
 
+#include <Eigen/Sparse>
+#include <vector>
+
 #include "pybind11/pybind11.h"
 #include "ndarray/pybind11.h"
+#include "pybind11/stl.h"
 
 #include "lsst/afw/table/io/python.h"
 #include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
@@ -20,7 +24,10 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
     clsCrowdedFieldMatrix.def(py::init<std::shared_ptr<const afw::image::Exposure<float>> &>(),
                               "exposure"_a);
             
+    clsCrowdedFieldMatrix.def("addSource", &CrowdedFieldMatrix<float>::addSource);
     clsCrowdedFieldMatrix.def("addSources", &CrowdedFieldMatrix<float>::addSources);
+
+    clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
 
 
 }
