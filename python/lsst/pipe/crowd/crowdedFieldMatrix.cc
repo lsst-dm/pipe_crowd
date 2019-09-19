@@ -21,7 +21,7 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
     py::class_<CrowdedFieldMatrix<float>, std::shared_ptr<CrowdedFieldMatrix<float>>>
             clsCrowdedFieldMatrix(mod, "CrowdedFieldMatrix");
 
-    clsCrowdedFieldMatrix.def(py::init<std::shared_ptr<const afw::image::Exposure<float>> &>(),
+    clsCrowdedFieldMatrix.def(py::init<const afw::image::Exposure<float> &>(),
                               "exposure"_a);
             
     clsCrowdedFieldMatrix.def("addSource", &CrowdedFieldMatrix<float>::addSource);
@@ -29,6 +29,7 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
 
     clsCrowdedFieldMatrix.def("solve", &CrowdedFieldMatrix<float>::solve);
 
+    clsCrowdedFieldMatrix.def("renameMatrixRows", &CrowdedFieldMatrix<float>::renameMatrixRows);
     clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
 
 

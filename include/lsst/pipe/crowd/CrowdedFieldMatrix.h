@@ -13,7 +13,7 @@ namespace crowd {
 template <typename PixelT>
 class CrowdedFieldMatrix {
 public:
-    CrowdedFieldMatrix(CONST_PTR(afw::image::Exposure<PixelT>) exposure);
+    CrowdedFieldMatrix(const afw::image::Exposure<PixelT>& exposure);
 
     void addSource(double  x, double y);
 
@@ -22,14 +22,19 @@ public:
 
     void solve();
 
+    std::map<int, int> renameMatrixRows();
     std::list<std::tuple<int, int, PixelT>> getMatrixEntries();
+    const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> makeDataMatrix();
 
 private:
 
-    CONST_PTR(afw::image::Exposure<PixelT>) _exposure;
+    const afw::image::Exposure<PixelT> _exposure;
     std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
+    std::map<int, int> _pixelMapping;
     int _nStars;
-    bool inputsFrozen;
+    bool _inputsFrozen;
+    int _nRows;
+    int _nColumns;
 
 };
 

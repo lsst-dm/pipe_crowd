@@ -6,6 +6,7 @@ from lsst.afw.image import ExposureF
 from lsst.pipe.crowd import CrowdedFieldMatrix
 from lsst.meas.algorithms.installGaussianPsf import InstallGaussianPsfTask, InstallGaussianPsfConfig
 import lsst.pex.exceptions.wrappers
+from collections import Counter
 
 class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
 
@@ -46,6 +47,35 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         with self.assertRaises(RuntimeError):
             matrix.addSource(300.0, 300.0)
 
+    def test_renameMatrixRows(self):
+        matrix = CrowdedFieldMatrix(self.exposure)
+        matrix.addSource(200.0, 200.0)
+        matrix.addSource(204.0, 204.0)
 
+        pre_rename_entries = matrix.getMatrixEntries()
+        matrix.renameMatrixRows()
+        post_rename_entries = matrix.getMatrixEntries()
+
+
+        self.assertEqual(len(pre_rename_entries), len(post_rename_entries))
+
+        # We check that the count of rows that appear a given number of times
+        # remains the same, since this is invariant under renaming.
+        pre_counter = Counter(x[1] for x in pre_rename_entries)
+        post_counter = Counter(x[1] for x in post_rename_entries)
+
+        pre_counts = list(pre_counter.values())
+        post_counts = list(post_counter.values())
+        pre_counts.sort()
+        post_counts.sort()
+        self.assertListEqual(pre_counts, post_counts)
+
+
+    def test_solve(self):
+        matrix = CrowdedFieldMatrix(self.exposure)
+        matrix.addSource(200.0, 200.0)
+        matrix.addSource(204.0, 204.0)
+
+        matrix.solve()
 
 
