@@ -29,13 +29,15 @@ public:
     void solve();
 
     std::map<int, int> renameMatrixRows();
-    std::list<std::tuple<int, int, PixelT>> getMatrixEntries();
-    const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> makeDataMatrix();
+    const std::list<std::tuple<int, int, PixelT>> getMatrixEntries();
+    const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> makeDataVector();
+    const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> getDataVector();
 
 private:
 
     const afw::image::Exposure<PixelT> _exposure;
     std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> _dataVector;
     std::map<int, int> _pixelMapping;
     int _nStars;
     int _nRows;

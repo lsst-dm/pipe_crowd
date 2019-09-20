@@ -5,6 +5,7 @@
 #include "pybind11/pybind11.h"
 #include "ndarray/pybind11.h"
 #include "pybind11/stl.h"
+#include "pybind11/eigen.h"
 
 #include "lsst/afw/table/io/python.h"
 #include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
@@ -32,6 +33,7 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
 
     clsCrowdedFieldMatrix.def("renameMatrixRows", &CrowdedFieldMatrix<float>::renameMatrixRows);
     clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
+    clsCrowdedFieldMatrix.def("getDataVector", &CrowdedFieldMatrix<float>::getDataVector);
 
 
 }

@@ -24,9 +24,23 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
                                                ndarray::Array<double const, 1> &x,
                                                ndarray::Array<double const, 1> &y) :
             _exposure(exposure),
-            _matrixEntries(_makeMatrixEntries(exposure, x, y)),
-            _nRows(0),
-            _nColumns(0) { };
+            _matrixEntries(_makeMatrixEntries(exposure, x, y)) 
+{ 
+    _pixelMapping = renameMatrixRows();
+    /*
+     * This depends on the result of renameMatrixRows(), but could be broken out
+     * into a separate function.
+     */
+    int max_column = 0;
+    int max_row = 0;
+    for(auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
+        if(ptr->col() > max_column) { max_column = ptr->col(); };
+        if(ptr->row() > max_row) { max_row = ptr->row(); };
+    }
+    _nRows = max_row + 1;
+    _nColumns = max_column + 1;
+    _dataVector = makeDataVector();
+};
 
 template <typename PixelT>
 std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntries(const afw::image::Exposure<PixelT> &exposure,
@@ -63,12 +77,17 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 }
 
 template <typename PixelT>
-std::list<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getMatrixEntries() {
+const std::list<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getMatrixEntries() {
     std::list<std::tuple<int, int, PixelT>> output;
     for (auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
         output.push_back(std::tuple<int, int, PixelT>(ptr->col(), ptr->row(), ptr->value()));
     }
     return output;
+}
+
+template <typename PixelT>
+const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::getDataVector() {
+    return _dataVector;
 }
 
 /*
@@ -93,18 +112,6 @@ std::map<int, int> CrowdedFieldMatrix<PixelT>::renameMatrixRows() {
             pixelCounter++;
         }
     }
-    /*
-     * This part could be broken out into a separate function, or extracted
-     * from the previous loop with some thought. 
-     */
-    int max_column = 0;
-    int max_row = 0;
-    for(auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
-        if(ptr->col() > max_column) { max_column = ptr->col(); };
-        if(ptr->row() > max_row) { max_row = ptr->row(); };
-    }
-    _nRows = max_row + 1;
-    _nColumns = max_column + 1;
 
     return outputMap;
 }
@@ -112,17 +119,24 @@ std::map<int, int> CrowdedFieldMatrix<PixelT>::renameMatrixRows() {
 
 
 template <typename PixelT>
-const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeDataMatrix() {
+const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeDataVector() {
     
-    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> dataMatrix(1, _nColumns);
+    LOGL_WARN(_log, "parameter matrix size %i rows, %i cols", _nRows, _nColumns);
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> dataMatrix(_nRows, 1);
+
     for(auto ptr = _pixelMapping.begin(); ptr != _pixelMapping.end(); ptr++) {
         int pixelId = ptr->first;
-        int columnId = ptr->second;
+        int rowId = ptr->second;
 
         int x = floor(pixelId / _exposure.getMaskedImage().getHeight());
         int y = pixelId % _exposure.getMaskedImage().getHeight();
 
-        dataMatrix(columnId, 1) = _exposure.getMaskedImage().getImage()->get(geom::Point2I(x,y), image::PARENT);
+        if(rowId >= _nRows) {
+            LOGL_WARN(_log, "row %i >= _nRows %i", rowId, _nRows);
+            throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "rowId >= _nRows ");
+        }
+        PixelT pixelValue = _exposure.getMaskedImage().getImage()->get(geom::Point2I(x,y), image::PARENT);
+        dataMatrix(rowId, 0) = pixelValue;
     }
     return dataMatrix;
 }
@@ -132,10 +146,6 @@ void CrowdedFieldMatrix<PixelT>::solve() {
 
 
     Eigen::SparseMatrix<PixelT> paramMatrix;
-    Eigen::SparseMatrix<PixelT> dataMatrix;
-    std::map<int, int> pixelMapping;
-
-    _pixelMapping = renameMatrixRows();
 
     LOGL_INFO(_log, "parameter matrix size %i rows, %i cols", _nRows, _nColumns);
 
