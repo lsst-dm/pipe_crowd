@@ -26,12 +26,14 @@ public:
                        ndarray::Array<double const, 1> &x,
                        ndarray::Array<double const, 1> &y);
 
-    void solve();
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> solve();
 
     std::map<int, int> renameMatrixRows();
     const std::list<std::tuple<int, int, PixelT>> getMatrixEntries();
     const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> makeDataVector();
     const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> getDataVector();
+    const std::map<int, int> getPixelMapping();
+    const std::vector<std::tuple<int, int, PixelT>> getDebug();
 
 private:
 
@@ -39,6 +41,7 @@ private:
     std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
     Eigen::Matrix<PixelT, Eigen::Dynamic, 1> _dataVector;
     std::map<int, int> _pixelMapping;
+    std::vector<std::tuple<int, int, PixelT>> _debugXYValues;
     int _nStars;
     int _nRows;
     int _nColumns;

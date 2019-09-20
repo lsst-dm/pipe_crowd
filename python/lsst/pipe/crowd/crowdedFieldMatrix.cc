@@ -34,6 +34,8 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
     clsCrowdedFieldMatrix.def("renameMatrixRows", &CrowdedFieldMatrix<float>::renameMatrixRows);
     clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
     clsCrowdedFieldMatrix.def("getDataVector", &CrowdedFieldMatrix<float>::getDataVector);
+    clsCrowdedFieldMatrix.def("getPixelMapping", &CrowdedFieldMatrix<float>::getPixelMapping);
+    clsCrowdedFieldMatrix.def("getDebug", &CrowdedFieldMatrix<float>::getDebug);
 
 
 }

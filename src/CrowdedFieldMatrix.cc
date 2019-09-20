@@ -137,21 +137,39 @@ const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeD
         }
         PixelT pixelValue = _exposure.getMaskedImage().getImage()->get(geom::Point2I(x,y), image::PARENT);
         dataMatrix(rowId, 0) = pixelValue;
+        _debugXYValues.push_back(std::tuple<int, int, PixelT>(x, y, pixelValue));
     }
     return dataMatrix;
 }
 
 template <typename PixelT>
-void CrowdedFieldMatrix<PixelT>::solve() {
+Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
 
 
     Eigen::SparseMatrix<PixelT> paramMatrix;
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> result;
 
     LOGL_INFO(_log, "parameter matrix size %i rows, %i cols", _nRows, _nColumns);
 
     paramMatrix = Eigen::SparseMatrix<PixelT>(_nRows, _nColumns);
     paramMatrix.setFromTriplets(_matrixEntries.begin(), _matrixEntries.end());
 
+    Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<PixelT>> lscg;
+    lscg.compute(paramMatrix);
+    result = lscg.solve(_dataVector);
+    
+    return result;
+}
+
+template <typename PixelT>
+const std::map<int, int> CrowdedFieldMatrix<PixelT>::getPixelMapping() {
+    return _pixelMapping;
+}
+
+
+template <typename PixelT>
+const std::vector<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getDebug() {
+    return _debugXYValues;
 }
 
 template class CrowdedFieldMatrix<float>;

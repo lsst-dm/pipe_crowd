@@ -2,11 +2,13 @@
 import unittest
 import numpy as np
 import lsst.utils.tests
+import lsst.afw.image as afwImage
 from lsst.afw.image import ExposureF
 from lsst.pipe.crowd import CrowdedFieldMatrix
 from lsst.meas.algorithms.installGaussianPsf import InstallGaussianPsfTask, InstallGaussianPsfConfig
 import lsst.pex.exceptions.wrappers
 from collections import Counter
+from lsst.geom import Point2D
 
 class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
 
@@ -68,13 +70,30 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         self.assertListEqual(pre_counts, post_counts)
 
 
-    def test_solve(self):
-        matrix = CrowdedFieldMatrix(self.exposure,
-                                    np.array([200.0, 200.0]),
-                                    np.array([204.0, 204.0]))
-        dataMatrix = matrix.getDataVector()
+    def add_psf_image(self, exposure, x, y, flux):
 
-        matrix.solve()
-        # Just testing that it doesn't crash so far.
+        psfImg = exposure.getPsf().computeImage(Point2D(x, y))
+        psfImg *= flux
+
+        subim = afwImage.ImageF(exposure.getMaskedImage().getImage(),
+                                psfImg.getBBox(), afwImage.LOCAL)
+        subim += psfImg.convertF()
+
+    def test_solve(self):
+        exposure = ExposureF(1000, 1000)
+        psfConfig = InstallGaussianPsfConfig()
+        psfConfig.fwhm = 4
+        psfTask = InstallGaussianPsfTask(config=psfConfig)
+        psfTask.run(exposure=exposure)
+
+        self.add_psf_image(exposure, 200.0, 400.0, 600.0)
+        self.add_psf_image(exposure, 210.0, 210.0, 300.0)
+
+        matrix = CrowdedFieldMatrix(exposure,
+                                    np.array([200.0, 210.0]),
+                                    np.array([400.0, 210.0]))
+        result = matrix.solve()
+
+        self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0]), atol=1e-3);
 
 
