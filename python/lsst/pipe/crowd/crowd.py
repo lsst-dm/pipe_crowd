@@ -1,7 +1,9 @@
 
 
+import numpy as np
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
+import lsst.afw.table as afwTable
 
 from .crowdedFieldMatrix import CrowdedFieldMatrix
 
@@ -31,18 +33,19 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
 
         sources = sensorRef.get("src")
 
+        mapper = afwTable.SchemaMapper(sources.schema)
+        mapper.addMinimalSchema(sources.schema, True)
+        simultaneousPsfFlux_key = mapper.editOutputSchema().addField(
+            "crowd_psfFlux_flux", type=np.float32,
+            doc="PSF Flux from simultaneous fitting")
+        mapper.editOutputSchema().setAliasMap(sources.schema.getAliasMap())
 
-        solver_matrix = CrowdedFieldMatrix(exposure)
+        output_catalog = afwTable.SourceCatalog(mapper.getOutputSchema())
+        output_catalog.extend(sources, mapper=mapper)
 
-        solver_matrix.addSource(200.0, 200.0)
-        #solver_matrix.addSources(sources['slot_Centroid_x'][:10],
-        #                         sources['slot_Centroid_y'][:10])
-        print(solver_matrix.getMatrixEntries()[:10])
-        out = solver_matrix.renameMatrixRows()
-        print(solver_matrix.getMatrixEntries()[:10])
+        solver_matrix = CrowdedFieldMatrix(exposure, output_catalog,
+                                           simultaneousPsfFlux_key)
+        solver_matrix.solve()
 
-
-        # solver_matrix.solve()
-
-        self.log.info("end of runDataRef")
+        sensorRef.put(output_catalog, "crowdedsrc")
 
