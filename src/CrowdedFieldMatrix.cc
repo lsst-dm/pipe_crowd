@@ -144,7 +144,6 @@ std::map<int, int> CrowdedFieldMatrix<PixelT>::renameMatrixRows() {
 template <typename PixelT>
 const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeDataVector() {
     
-    LOGL_WARN(_log, "parameter matrix size %i rows, %i cols", _nRows, _nColumns);
     Eigen::Matrix<PixelT, Eigen::Dynamic, 1> dataMatrix(_nRows, 1);
 
     for(auto ptr = _pixelMapping.begin(); ptr != _pixelMapping.end(); ptr++) {
