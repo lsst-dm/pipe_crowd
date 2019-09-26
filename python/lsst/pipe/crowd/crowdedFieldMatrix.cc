@@ -26,6 +26,11 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
                                        ndarray::Array<double const, 1> &,
                                         ndarray::Array<double const, 1> &>(),
                               "exposure"_a, "x"_a, "y"_a);
+
+    clsCrowdedFieldMatrix.def(py::init<const afw::image::Exposure<float> &,
+                                       afw::table::SourceCatalog *,
+                                       afw::table::Key<float> >(),
+                              "exposure"_a, "sourceCatalog"_a, "fluxKey"_a);
             
     clsCrowdedFieldMatrix.def("_addSource", &CrowdedFieldMatrix<float>::_addSource);
 

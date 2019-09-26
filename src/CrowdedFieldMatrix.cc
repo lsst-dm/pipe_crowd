@@ -1,6 +1,9 @@
 
 #include "lsst/base.h"
 #include "lsst/afw/table/Exposure.h"
+#include "lsst/afw/table/Key.h"
+#include "lsst/afw/table/Catalog.h"
+#include "lsst/afw/table/Source.h"
 #include "lsst/meas/algorithms/ImagePsf.h"
 #include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
 #include "lsst/log/Log.h"
@@ -24,23 +27,28 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
                                                ndarray::Array<double const, 1> &x,
                                                ndarray::Array<double const, 1> &y) :
             _exposure(exposure),
+            _catalog(NULL),
             _matrixEntries(_makeMatrixEntries(exposure, x, y)) 
 { 
     _pixelMapping = renameMatrixRows();
-    /*
-     * This depends on the result of renameMatrixRows(), but could be broken out
-     * into a separate function.
-     */
-    int max_column = 0;
-    int max_row = 0;
-    for(auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
-        if(ptr->col() > max_column) { max_column = ptr->col(); };
-        if(ptr->row() > max_row) { max_row = ptr->row(); };
-    }
-    _nRows = max_row + 1;
-    _nColumns = max_column + 1;
+    std::tie(_nRows, _nColumns) = _setNrowsNcols();
     _dataVector = makeDataVector();
 };
+
+template <typename PixelT>
+CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT> &exposure,
+                                               afw::table::SourceCatalog *catalog,
+                                               afw::table::Key<float> fluxKey) :
+            _exposure(exposure),
+            _catalog(catalog),
+            _fluxKey(fluxKey),
+            _matrixEntries(_makeMatrixEntries(exposure, catalog)) 
+{ 
+    _pixelMapping = renameMatrixRows();
+    std::tie(_nRows, _nColumns) = _setNrowsNcols();
+    _dataVector = makeDataVector();
+};
+
 
 template <typename PixelT>
 std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntries(const afw::image::Exposure<PixelT> &exposure,
@@ -52,9 +60,24 @@ std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntri
     }
 
     std::vector<Eigen::Triplet<PixelT>> matrixEntries;
-    size_t n;
-    for(n = 0; n < x.getSize<0>(); n++) {
-        _addSource(exposure, matrixEntries, (int) n, (double) x[n], (double) y[n]);
+    for(size_t n = 0; n < x.getSize<0>(); n++) {
+        _addSource(exposure, matrixEntries, (int) n, x[n], y[n]);
+    }
+    return matrixEntries;
+}
+
+template <typename PixelT>
+std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntries(const afw::image::Exposure<PixelT> &exposure,
+                                            afw::table::SourceCatalog *catalog) {
+    if(catalog == NULL) {
+        throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "sourceCatalog is NULL");
+    }
+    std::vector<Eigen::Triplet<PixelT>> matrixEntries;
+    size_t n = 0;
+    afw::geom::Point2D centroid;
+    for(auto rec = catalog->begin(); rec < catalog->end(); rec++, n++) {
+        centroid = rec->getCentroid();
+        _addSource(exposure, matrixEntries, (int) n, centroid[0], centroid[1]);
     }
     return matrixEntries;
 }
@@ -157,6 +180,13 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
     Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<PixelT>> lscg;
     lscg.compute(paramMatrix);
     result = lscg.solve(_dataVector);
+
+    if(_catalog) {
+        size_t n = 0;
+        for(auto rec = _catalog->begin(); rec < _catalog->end(); rec++, n++) {
+            rec->set(_fluxKey, result(n, 0));
+        }
+    }
     
     return result;
 }
@@ -170,6 +200,21 @@ const std::map<int, int> CrowdedFieldMatrix<PixelT>::getPixelMapping() {
 template <typename PixelT>
 const std::vector<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getDebug() {
     return _debugXYValues;
+}
+
+template <typename PixelT>
+const std::tuple<int, int> CrowdedFieldMatrix<PixelT>::_setNrowsNcols() {
+    /*
+     * This depends on the result of renameMatrixRows(), not entirely
+     * satisfying. 
+     */
+    int max_column = 0;
+    int max_row = 0;
+    for(auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
+        if(ptr->col() > max_column) { max_column = ptr->col(); };
+        if(ptr->row() > max_row) { max_row = ptr->row(); };
+    }
+    return std::make_tuple(max_row + 1, max_column + 1);
 }
 
 template class CrowdedFieldMatrix<float>;
