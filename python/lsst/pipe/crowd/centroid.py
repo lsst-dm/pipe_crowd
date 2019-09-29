@@ -12,69 +12,53 @@ import lsst.afw.detection as afwDetection
 from lsst.meas.base import SdssCentroidAlgorithm, SdssCentroidControl
 from lsst.meas.base import MeasurementError
 
+from .subtraction import CatalogPsfSubtractTask
+
 class CrowdedCentroidTaskConfig(pexConfig.Config):
     """Config for CrowdedCentroidTask"""
 
-    pass
+    subtraction = pexConfig.ConfigurableField(
+            target=CatalogPsfSubtractTask,
+            doc="Subtract sources from image"
+    )
 
 class CrowdedCentroidTask(pipeBase.Task):
     ConfigClass = CrowdedCentroidTaskConfig
     _DefaultName = "crowdedCentroidTask"
 
     def __init__(self, schema, **kwargs):
+        pipeBase.CmdLineTask.__init__(self, **kwargs)
         self.centroid_control = SdssCentroidControl()
         self.sdssCentroid = SdssCentroidAlgorithm(self.centroid_control,
                                                   "centroid",
                                                   schema)
-        pipeBase.CmdLineTask.__init__(self, **kwargs)
+        self.makeSubtask("subtraction")
 
     @pipeBase.timeMethod
     def run(self, exposure, catalog, flux_key):
 
         subtracted_exposure = afwImage.ExposureF(exposure, deep=True)
-        subtracted_image = subtracted_exposure.getMaskedImage()
-
-        #
-        # Totally a repetition from subtraction.py, don't leave this here
-        #
-        for source in catalog:
-            centroid = source.getCentroid()
-            psf_image = exposure.getPsf().computeImage(centroid)
-            psf_image *= source[flux_key]
-            bbox = psf_image.getBBox()
-            bbox.clip(subtracted_image.getBBox())
-            image_subregion = afwImage.ImageF(subtracted_image.getImage(),
-                                    bbox, afwImage.LOCAL)
-            image_subregion -= psf_image[bbox].convertF()
+        self.subtraction.run(subtracted_exposure, catalog, flux_key)
 
         for source in catalog:
-            centroid = source.getCentroid()
-            psf_image = exposure.getPsf().computeImage(centroid)
-            psf_image *= source[flux_key]
-            bbox = psf_image.getBBox()
-            bbox.clip(subtracted_image.getBBox())
+            with self.subtraction.replaced_source(subtracted_exposure,
+                                                  source, flux_key):
+                spanSet = afwGeom.SpanSet.fromShape(5)
+                spanSet = spanSet.shiftedBy(Extent2I(source.getCentroid()))
+                footprint = afwDetection.Footprint(spanSet)
+                peak = footprint.peaks.addNew()
+                peak.setFx(source.getCentroid().getX())
+                peak.setFy(source.getCentroid().getY())
+                peak.setIx(int(source.getCentroid().getX()))
+                peak.setIy(int(source.getCentroid().getY()))
+                source.setFootprint(footprint)
 
-            image_subregion = afwImage.ImageF(subtracted_image.getImage(),
-                                         bbox, afwImage.LOCAL)
-            image_subregion += psf_image[bbox].convertF()
-
-            spanSet = afwGeom.SpanSet.fromShape(5)
-            spanSet = spanSet.shiftedBy(Extent2I(source.getCentroid()))
-            footprint = afwDetection.Footprint(spanSet)
-            peak = footprint.peaks.addNew()
-            peak.setFx(source.getCentroid().getX())
-            peak.setFy(source.getCentroid().getY())
-            peak.setIx(int(source.getCentroid().getX()))
-            peak.setIy(int(source.getCentroid().getY()))
-            source.setFootprint(footprint)
-
-            try:
-                self.sdssCentroid.measure(source, exposure)
-            except (MeasurementError):
-                pass
+                try:
+                    self.sdssCentroid.measure(source, exposure)
+                except (MeasurementError):
+                    pass
 
 
-            image_subregion -= psf_image[bbox].convertF()
 
 
 

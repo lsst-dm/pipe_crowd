@@ -70,11 +70,17 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
 
     @pipeBase.timeMethod
     def runDataRef(self, sensorRef):
+
         exposure = sensorRef.get("calexp")
 
+        source_catalog = self.run(exposure)
 
-        subtractConfig = CatalogPsfSubtractTaskConfig()
-        subtraction = CatalogPsfSubtractTask(config=subtractConfig)
+        sensorRef.put(source_catalog, "crowdedsrc")
+        sensorRef.put(exposure, "subtractedimg")
+
+
+    @pipeBase.timeMethod
+    def run(self, exposure):
 
         source_catalog = afwTable.SourceCatalog(self.schema)
         detRes = self.detection.run(source_catalog, exposure)
@@ -101,6 +107,6 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
                              source_catalog,
                              self.simultaneousPsfFlux_key)
 
-        sensorRef.put(source_catalog, "crowdedsrc")
-        sensorRef.put(exposure, "subtractedimg")
+        return source_catalog
+
 
