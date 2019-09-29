@@ -10,24 +10,16 @@ class CatalogPsfSubtractTaskConfig(pexConfig.Config):
 
     pass
 
-class CatalogPsfSubtractTask(pipeBase.CmdLineTask):
+class CatalogPsfSubtractTask(pipeBase.Task):
     ConfigClass = CatalogPsfSubtractTaskConfig
     _DefaultName = "catalogPsfSubtractTask"
 
-    def _getConfigName(self):
-        return None
-
-    def _getMetadataName(self):
-        return None
-
-    def __init__(self, **kwargs):
-        pipeBase.CmdLineTask.__init__(self, **kwargs)
 
     @pipeBase.timeMethod
     def run(self, exposure, catalog, catalog_key):
 
         subtracted_image = afwImage.MaskedImageF(exposure.getMaskedImage(),
-                                                deep=True)
+                                                deep=False)
 
         for source in catalog:
             centroid = source.getCentroid()
