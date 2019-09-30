@@ -9,6 +9,7 @@
 #include "lsst/log/Log.h"
 #include "lsst/afw/detection/Psf.h"
 #include "lsst/afw/geom/Point.h"
+#include "lsst/afw/image/Mask.h"
 
 #include <Eigen/SparseCore>
 #include <Eigen/IterativeLinearSolvers>
@@ -87,11 +88,25 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
                                             std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
                                             int nStar, double x, double y) {
     std::shared_ptr<detection::Psf::Image> psfImage;
+    afw::image::MaskPixel maskValue;
+    afw::image::Mask<afw::image::MaskPixel> psfShapedMask; 
+    afw::image::MaskPixel maskFlagsForRejection = afw::image::Mask<afw::image::MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR"});
+    geom::Box2I clippedBBox;
 
     psfImage = exposure.getPsf()->computeImage(geom::Point2D(x, y));
+    clippedBBox = psfImage->getBBox();
+    clippedBBox.clip(exposure.getMaskedImage().getBBox());
+    psfShapedMask = afw::image::Mask<afw::image::MaskPixel>(*exposure.getMaskedImage().getMask(), clippedBBox);
+
 
     for (int y = 0; y != psfImage->getHeight(); ++y) {
         for (int x = 0; x != psfImage->getWidth(); ++x) {
+
+            maskValue = psfShapedMask.get(geom::Point2I(x,y), image::LOCAL);
+            if((maskValue & maskFlagsForRejection) > 0) {
+                continue;
+            }
+
             PixelT psfValue = psfImage->get(geom::Point2I(x,y), image::LOCAL);
             int pixelIndex = exposure.getMaskedImage().getHeight() * psfImage->indexToPosition(x, image::X) + psfImage->indexToPosition(y, image::Y);
             matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, nStar, psfValue));

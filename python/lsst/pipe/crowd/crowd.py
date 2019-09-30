@@ -98,9 +98,15 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         self.centroid.run(exposure, source_catalog,
                      self.simultaneousPsfFlux_key)
 
-
+        # Move the centroid slot from the coarse peak values to the
+        # SdssCentroid values.
         source_catalog.schema.getAliasMap().set("slot_Centroid",
                                                 "centroid")
+
+        # Now that we have more precise centroids, re-fit the fluxes
+        solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
+                                           self.simultaneousPsfFlux_key)
+        solver_matrix.solve()
 
         # Subtract in-place
         self.subtraction.run(exposure,

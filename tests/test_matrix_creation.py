@@ -108,13 +108,17 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
 
         add_psf_image(exposure, 200.0, 400.0, 600.0)
         add_psf_image(exposure, 210.0, 210.0, 300.0)
+        # These last two are to catch edge effects.
+        add_psf_image(exposure, 5.0, 210.0, 400.0)
+        add_psf_image(exposure, 300.0, 5.0, 500.0)
 
         matrix = CrowdedFieldMatrix(exposure,
-                                    np.array([200.0, 210.0]),
-                                    np.array([400.0, 210.0]))
+                                    np.array([200.0, 210.0, 5.0, 300.0]),
+                                    np.array([400.0, 210.0, 210.0, 5.0]))
         result = matrix.solve()
 
-        self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0]), atol=1e-3);
+        self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0, 400.0,
+                                                       500.0]), atol=1e-3);
 
     def test_solve_catalog(self):
         exposure = ExposureF(1000, 1000)
@@ -141,6 +145,27 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         result = matrix.solve()
 
         self.assertFloatsAlmostEqual(testCatalog["flux_flux"], np.array([600.0, 300.0]), atol=1e-3);
+
+    def test_reject_maskedpixels(self):
+        exposure = ExposureF(1000, 1000)
+        psfConfig = InstallGaussianPsfConfig()
+        psfConfig.fwhm = 4
+        psfTask = InstallGaussianPsfTask(config=psfConfig)
+        psfTask.run(exposure=exposure)
+
+        add_psf_image(exposure, 200.0, 400.0, 600.0)
+        add_psf_image(exposure, 210.0, 210.0, 300.0)
+
+        exposure.getMaskedImage().getImage()[200, 400] += 10000
+        mask_dict = exposure.getMaskedImage().getMask().getMaskPlaneDict()
+        exposure.getMaskedImage().getMask()[200, 400] |= mask_dict['SAT']
+
+        matrix = CrowdedFieldMatrix(exposure,
+                                    np.array([200.0, 210.0]),
+                                    np.array([400.0, 210.0]))
+        result = matrix.solve()
+
+        self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0]), atol=1e-3);
 
     @unittest.skip
     def test_solve_subimage(self):
