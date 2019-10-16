@@ -4,6 +4,7 @@ import numpy as np
 import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 import lsst.afw.table as afwTable
+import lsst.afw.image as afwImage
 from lsst.meas.algorithms import SourceDetectionTask, SourceDetectionConfig
 from lsst.pipe.base import ArgumentParser
 
@@ -27,6 +28,12 @@ class CrowdedFieldTaskConfig(pexConfig.Config):
     subtraction = pexConfig.ConfigurableField(
             target=CatalogPsfSubtractTask,
             doc="Subtract sources from image"
+    )
+
+    num_iterations = pexConfig.Field(
+        dtype=int,
+        default=2,
+        doc="Number of detect-measure-subtract iterations",
     )
 
 class CrowdedFieldTask(pipeBase.CmdLineTask):
@@ -83,30 +90,52 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
     def run(self, exposure):
 
         source_catalog = afwTable.SourceCatalog(self.schema)
-        detRes = self.detection.run(source_catalog, exposure)
 
-        for source in detRes.sources:
-            for peak in source.getFootprint().peaks:
-                child = source_catalog.addNew()
-                child['coarse_centroid_x'] = peak.getFx()
-                child['coarse_centroid_y'] = peak.getFy()
+        for detection_round in range(1, self.config.num_iterations + 1):
 
-        solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
-                                           self.simultaneousPsfFlux_key)
-        solver_matrix.solve()
+            detection_catalog = afwTable.SourceCatalog(self.schema)
+            if(len(source_catalog) > 0):
+                residual_exposure = afwImage.ExposureF(exposure, deep=True)
 
-        self.centroid.run(exposure, source_catalog,
-                     self.simultaneousPsfFlux_key)
+                self.subtraction.run(residual_exposure,
+                                     source_catalog,
+                                     self.simultaneousPsfFlux_key)
+            else:
+                residual_exposure = exposure
 
-        # Move the centroid slot from the coarse peak values to the
-        # SdssCentroid values.
-        source_catalog.schema.getAliasMap().set("slot_Centroid",
-                                                "centroid")
 
-        # Now that we have more precise centroids, re-fit the fluxes
-        solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
-                                           self.simultaneousPsfFlux_key)
-        solver_matrix.solve()
+            detRes = self.detection.run(detection_catalog, residual_exposure)
+
+            for source in detRes.sources:
+                for peak in source.getFootprint().peaks:
+                    child = source_catalog.addNew()
+                    child['coarse_centroid_x'] = peak.getFx()
+                    child['coarse_centroid_y'] = peak.getFy()
+
+            self.log.info("Source catalog length after detection round %d: %d",
+                          detection_round, len(source_catalog))
+
+            solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
+                                               self.simultaneousPsfFlux_key)
+            solver_matrix.solve()
+
+            source_catalog.schema.getAliasMap().set("slot_Centroid",
+                                                    "coarse_centroid")
+
+            self.centroid.run(exposure, source_catalog,
+                         self.simultaneousPsfFlux_key)
+
+            # Move the centroid slot from the coarse peak values to the
+            # SdssCentroid values.
+            source_catalog.schema.getAliasMap().set("slot_Centroid",
+                                                    "centroid")
+
+            # Now that we have more precise centroids, re-fit the fluxes
+            solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
+                                               self.simultaneousPsfFlux_key)
+            solver_matrix.solve()
+
+        self.log.info("Final source catalog length: %d", len(source_catalog))
 
         # Subtract in-place
         self.subtraction.run(exposure,

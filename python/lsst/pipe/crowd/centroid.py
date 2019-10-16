@@ -49,8 +49,11 @@ class CrowdedCentroidTask(pipeBase.Task):
                 peak = footprint.peaks.addNew()
                 peak.setFx(source.getCentroid().getX())
                 peak.setFy(source.getCentroid().getY())
-                peak.setIx(int(source.getCentroid().getX()))
-                peak.setIy(int(source.getCentroid().getY()))
+
+                # Check for NaNs
+                if(source.getCentroid().getX() == source.getCentroid().getX()):
+                    peak.setIx(int(source.getCentroid().getX()))
+                    peak.setIy(int(source.getCentroid().getY()))
                 source.setFootprint(footprint)
 
                 try:
