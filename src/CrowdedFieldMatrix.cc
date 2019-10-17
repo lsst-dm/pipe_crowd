@@ -12,10 +12,10 @@
 
 #include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
 
-#include <Eigen/SparseCore>
-#include <Eigen/IterativeLinearSolvers>
+#include "Eigen/SparseCore"
+#include "Eigen/IterativeLinearSolvers"
 
-using namespace lsst::afw;
+using namespace lsst;
 
 namespace lsst {
 namespace pipe {
@@ -55,13 +55,14 @@ std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntri
                                                ndarray::Array<double const, 1> &x,
                                                ndarray::Array<double const, 1> &y) {
 
+    std::vector<Eigen::Triplet<PixelT>> matrixEntries;
+
     if(x.getSize<0>() != y.getSize<0>()) {
         throw LSST_EXCEPT(lsst::pex::exceptions::LengthError, "x and y must be the same length.");
     }
 
-    std::vector<Eigen::Triplet<PixelT>> matrixEntries;
-    for(size_t n = 0; n < x.getSize<0>(); n++) {
-        _addSource(exposure, matrixEntries, (int) n, x[n], y[n]);
+    for(size_t n = 0; n < x.getSize<0>(); ++n) {
+        _addSource(exposure, matrixEntries, n, x[n], y[n]);
     }
     return matrixEntries;
 }
@@ -73,11 +74,11 @@ std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntri
         throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "sourceCatalog is NULL");
     }
     std::vector<Eigen::Triplet<PixelT>> matrixEntries;
-    size_t n = 0;
     afw::geom::Point2D centroid;
-    for(auto rec = catalog->begin(); rec < catalog->end(); rec++, n++) {
+    size_t n = 0;
+    for(auto rec = catalog->begin(); rec < catalog->end(); ++rec, ++n) {
         centroid = rec->getCentroid();
-        _addSource(exposure, matrixEntries, (int) n, centroid[0], centroid[1]);
+        _addSource(exposure, matrixEntries, n, centroid[0], centroid[1]);
     }
     return matrixEntries;
 }
@@ -86,30 +87,32 @@ template <typename PixelT>
 void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &exposure,
                                             std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
                                             int nStar, double x, double y) {
-    std::shared_ptr<detection::Psf::Image> psfImage;
-    afw::image::MaskPixel maskValue;
-    afw::image::Mask<afw::image::MaskPixel> psfShapedMask;
-    afw::image::MaskPixel maskFlagsForRejection = afw::image::Mask<afw::image::MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR"});
+    using afw::image::Mask;
+    using afw::image::MaskPixel;
+    std::shared_ptr<afw::detection::Psf::Image> psfImage;
+    MaskPixel maskValue;
+    Mask<MaskPixel> psfShapedMask;
+    MaskPixel maskFlagsForRejection = Mask<MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR"});
     geom::Box2I clippedBBox;
 
     psfImage = exposure.getPsf()->computeImage(geom::Point2D(x, y));
     clippedBBox = psfImage->getBBox();
     clippedBBox.clip(exposure.getMaskedImage().getBBox());
-    psfShapedMask = afw::image::Mask<afw::image::MaskPixel>(*exposure.getMaskedImage().getMask(), clippedBBox);
+    psfShapedMask = Mask<MaskPixel>(*exposure.getMaskedImage().getMask(), clippedBBox);
 
     _paramTracker.addSource(nStar);
 
     for (int y = 0; y != psfImage->getHeight(); ++y) {
         for (int x = 0; x != psfImage->getWidth(); ++x) {
 
-            maskValue = psfShapedMask.get(geom::Point2I(x,y), image::LOCAL);
+            maskValue = psfShapedMask.get(geom::Point2I(x,y), afw::image::LOCAL);
             if((maskValue & maskFlagsForRejection) > 0) {
                 continue;
             }
 
-            PixelT psfValue = psfImage->get(geom::Point2I(x,y), image::LOCAL);
-            int pixelIndex = _paramTracker.makePixelId(psfImage->indexToPosition(x, image::X),
-                                                       psfImage->indexToPosition(y, image::Y));
+            PixelT psfValue = psfImage->get(geom::Point2I(x,y), afw::image::LOCAL);
+            int pixelIndex = _paramTracker.makePixelId(psfImage->indexToPosition(x, afw::image::X),
+                                                       psfImage->indexToPosition(y, afw::image::Y));
             int paramIndex = _paramTracker.getSourceParameterId(nStar, 0);
             matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue));
         }
@@ -119,7 +122,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 template <typename PixelT>
 const std::list<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getMatrixEntries() {
     std::list<std::tuple<int, int, PixelT>> output;
-    for (auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
+    for (auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ++ptr) {
         output.push_back(std::tuple<int, int, PixelT>(ptr->col(), ptr->row(), ptr->value()));
     }
     return output;
@@ -170,17 +173,12 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
 
     if(_catalog) {
         size_t n = 0;
-        for(auto rec = _catalog->begin(); rec < _catalog->end(); rec++, n++) {
+        for(auto rec = _catalog->begin(); rec < _catalog->end(); ++rec, ++n) {
             rec->set(_fluxKey, result(n, 0));
         }
     }
 
     return result;
-}
-
-template <typename PixelT>
-const std::vector<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getDebug() {
-    return _debugXYValues;
 }
 
 template class CrowdedFieldMatrix<float>;

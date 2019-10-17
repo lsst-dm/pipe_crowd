@@ -44,7 +44,6 @@ public:
     const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> makeDataVector();
     const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> getDataVector();
     const std::map<int, int> getPixelMapping();
-    const std::vector<std::tuple<int, int, PixelT>> getDebug();
 
 private:
 
@@ -53,7 +52,6 @@ private:
     afw::table::Key<float> _fluxKey;
     std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
     Eigen::Matrix<PixelT, Eigen::Dynamic, 1> _dataVector;
-    std::vector<std::tuple<int, int, PixelT>> _debugXYValues;
     ParameterTracker _paramTracker;
 
 
