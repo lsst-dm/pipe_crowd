@@ -29,8 +29,8 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
                                                ndarray::Array<double const, 1> &y) :
             _exposure(exposure),
             _catalog(NULL),
-            _matrixEntries(_makeMatrixEntries(exposure, x, y)) 
-{ 
+            _matrixEntries(_makeMatrixEntries(exposure, x, y))
+{
     _pixelMapping = renameMatrixRows();
     std::tie(_nRows, _nColumns) = _setNrowsNcols();
     _dataVector = makeDataVector();
@@ -43,8 +43,8 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
             _exposure(exposure),
             _catalog(catalog),
             _fluxKey(fluxKey),
-            _matrixEntries(_makeMatrixEntries(exposure, catalog)) 
-{ 
+            _matrixEntries(_makeMatrixEntries(exposure, catalog))
+{
     _pixelMapping = renameMatrixRows();
     std::tie(_nRows, _nColumns) = _setNrowsNcols();
     _dataVector = makeDataVector();
@@ -82,14 +82,14 @@ std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntri
     }
     return matrixEntries;
 }
-    
+
 template <typename PixelT>
-void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &exposure, 
+void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &exposure,
                                             std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
                                             int nStar, double x, double y) {
     std::shared_ptr<detection::Psf::Image> psfImage;
     afw::image::MaskPixel maskValue;
-    afw::image::Mask<afw::image::MaskPixel> psfShapedMask; 
+    afw::image::Mask<afw::image::MaskPixel> psfShapedMask;
     afw::image::MaskPixel maskFlagsForRejection = afw::image::Mask<afw::image::MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR"});
     geom::Box2I clippedBBox;
 
@@ -158,7 +158,7 @@ std::map<int, int> CrowdedFieldMatrix<PixelT>::renameMatrixRows() {
 
 template <typename PixelT>
 const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeDataVector() {
-    
+
     Eigen::Matrix<PixelT, Eigen::Dynamic, 1> dataMatrix(_nRows, 1);
 
     for(auto ptr = _pixelMapping.begin(); ptr != _pixelMapping.end(); ptr++) {
@@ -201,7 +201,7 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
             rec->set(_fluxKey, result(n, 0));
         }
     }
-    
+
     return result;
 }
 
@@ -220,7 +220,7 @@ template <typename PixelT>
 const std::tuple<int, int> CrowdedFieldMatrix<PixelT>::_setNrowsNcols() {
     /*
      * This depends on the result of renameMatrixRows(), not entirely
-     * satisfying. 
+     * satisfying.
      */
     int max_column = 0;
     int max_row = 0;

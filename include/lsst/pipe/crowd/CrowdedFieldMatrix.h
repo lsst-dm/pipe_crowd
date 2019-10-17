@@ -24,7 +24,7 @@ public:
                        afw::table::SourceCatalog *catalog,
                        afw::table::Key<float> fluxKey);
 
-    static void _addSource(const afw::image::Exposure<PixelT> &exposure, 
+    static void _addSource(const afw::image::Exposure<PixelT> &exposure,
                            std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
                            int nStar, double  x, double y);
 
