@@ -14,9 +14,13 @@ public:
 
     void addSource(int sourceId);
 
-    int getPixelId(int pixelX, int pixelY);
+    int makePixelId(int pixelX, int pixelY);
+    int* getPixelId(int pixelX, int pixelY);
 
     int getSourceParameterId(int sourceId, int param);
+
+    int nRows();
+    int nColumns();
 
 private:
 

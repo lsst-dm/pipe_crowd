@@ -5,11 +5,12 @@
 #include "lsst/afw/table/Catalog.h"
 #include "lsst/afw/table/Source.h"
 #include "lsst/meas/algorithms/ImagePsf.h"
-#include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
 #include "lsst/log/Log.h"
 #include "lsst/afw/detection/Psf.h"
 #include "lsst/afw/geom/Point.h"
 #include "lsst/afw/image/Mask.h"
+
+#include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
 
 #include <Eigen/SparseCore>
 #include <Eigen/IterativeLinearSolvers>
@@ -29,10 +30,9 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
                                                ndarray::Array<double const, 1> &y) :
             _exposure(exposure),
             _catalog(NULL),
-            _matrixEntries(_makeMatrixEntries(exposure, x, y))
+            _paramTracker(ParameterTracker(1))
 {
-    _pixelMapping = renameMatrixRows();
-    std::tie(_nRows, _nColumns) = _setNrowsNcols();
+    _matrixEntries = _makeMatrixEntries(exposure, x, y);
     _dataVector = makeDataVector();
 };
 
@@ -43,10 +43,9 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
             _exposure(exposure),
             _catalog(catalog),
             _fluxKey(fluxKey),
-            _matrixEntries(_makeMatrixEntries(exposure, catalog))
+            _paramTracker(ParameterTracker(1))
 {
-    _pixelMapping = renameMatrixRows();
-    std::tie(_nRows, _nColumns) = _setNrowsNcols();
+    _matrixEntries = _makeMatrixEntries(exposure, catalog);
     _dataVector = makeDataVector();
 };
 
@@ -98,6 +97,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
     clippedBBox.clip(exposure.getMaskedImage().getBBox());
     psfShapedMask = afw::image::Mask<afw::image::MaskPixel>(*exposure.getMaskedImage().getMask(), clippedBBox);
 
+    _paramTracker.addSource(nStar);
 
     for (int y = 0; y != psfImage->getHeight(); ++y) {
         for (int x = 0; x != psfImage->getWidth(); ++x) {
@@ -108,8 +108,10 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
             }
 
             PixelT psfValue = psfImage->get(geom::Point2I(x,y), image::LOCAL);
-            int pixelIndex = exposure.getMaskedImage().getHeight() * psfImage->indexToPosition(x, image::X) + psfImage->indexToPosition(y, image::Y);
-            matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, nStar, psfValue));
+            int pixelIndex = _paramTracker.makePixelId(psfImage->indexToPosition(x, image::X),
+                                                       psfImage->indexToPosition(y, image::Y));
+            int paramIndex = _paramTracker.getSourceParameterId(nStar, 0);
+            matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue));
         }
     }
 }
@@ -128,53 +130,22 @@ const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::getDa
     return _dataVector;
 }
 
-/*
- *
- * The initial entries in the matrix tuple vector uses pixel numbers, but if we
- * don't touch every pixel then there will be some rows that are empty. We
- * create a remapping dictionary and renumber the entries in the triplets.
- */
-template <typename PixelT>
-std::map<int, int> CrowdedFieldMatrix<PixelT>::renameMatrixRows() {
-    std::map<int, int> outputMap;
-    std::map<int, int>::iterator mappingEntry;
-    int pixelCounter = 0;
-
-    for(auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
-        mappingEntry = outputMap.find(ptr->row());
-        if(mappingEntry != outputMap.end()) {
-            *ptr = Eigen::Triplet<PixelT>(mappingEntry->second, ptr->col(), ptr->value());
-        } else {
-            outputMap.insert({ptr->row(), pixelCounter});
-            *ptr = Eigen::Triplet<PixelT>(pixelCounter,  ptr->col(), ptr->value());
-            pixelCounter++;
-        }
-    }
-
-    return outputMap;
-}
-
-
-
 template <typename PixelT>
 const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeDataVector() {
 
-    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> dataMatrix(_nRows, 1);
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> dataMatrix(_paramTracker.nRows(), 1);
+    auto img = _exposure.getMaskedImage().getImage();
+    int * pixelId;
 
-    for(auto ptr = _pixelMapping.begin(); ptr != _pixelMapping.end(); ptr++) {
-        int pixelId = ptr->first;
-        int rowId = ptr->second;
+    for (int y = 0; y != img->getHeight(); ++y) {
+        for (auto ptr = img->row_begin(y), end = img->row_end(y), x = 0; ptr != end; ++ptr, ++x) {
 
-        int x = floor(pixelId / _exposure.getMaskedImage().getHeight());
-        int y = pixelId % _exposure.getMaskedImage().getHeight();
-
-        if(rowId >= _nRows) {
-            LOGL_WARN(_log, "row %i >= _nRows %i", rowId, _nRows);
-            throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "rowId >= _nRows ");
+            pixelId = _paramTracker.getPixelId(x, y);
+            if(pixelId == NULL) {
+                continue;
+            }
+            dataMatrix(*pixelId, 0) = *ptr;
         }
-        PixelT pixelValue = _exposure.getMaskedImage().getImage()->get(geom::Point2I(x,y), image::PARENT);
-        dataMatrix(rowId, 0) = pixelValue;
-        _debugXYValues.push_back(std::tuple<int, int, PixelT>(x, y, pixelValue));
     }
     return dataMatrix;
 }
@@ -186,9 +157,11 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
     Eigen::SparseMatrix<PixelT> paramMatrix;
     Eigen::Matrix<PixelT, Eigen::Dynamic, 1> result;
 
-    LOGL_INFO(_log, "parameter matrix size %i rows, %i cols", _nRows, _nColumns);
+    LOGL_INFO(_log, "parameter matrix size %i rows, %i cols",
+              _paramTracker.nRows(), _paramTracker.nColumns());
 
-    paramMatrix = Eigen::SparseMatrix<PixelT>(_nRows, _nColumns);
+    paramMatrix = Eigen::SparseMatrix<PixelT>(_paramTracker.nRows(),
+                                              _paramTracker.nColumns());
     paramMatrix.setFromTriplets(_matrixEntries.begin(), _matrixEntries.end());
 
     Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<PixelT>> lscg;
@@ -206,29 +179,8 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
 }
 
 template <typename PixelT>
-const std::map<int, int> CrowdedFieldMatrix<PixelT>::getPixelMapping() {
-    return _pixelMapping;
-}
-
-
-template <typename PixelT>
 const std::vector<std::tuple<int, int, PixelT>> CrowdedFieldMatrix<PixelT>::getDebug() {
     return _debugXYValues;
-}
-
-template <typename PixelT>
-const std::tuple<int, int> CrowdedFieldMatrix<PixelT>::_setNrowsNcols() {
-    /*
-     * This depends on the result of renameMatrixRows(), not entirely
-     * satisfying.
-     */
-    int max_column = 0;
-    int max_row = 0;
-    for(auto ptr = _matrixEntries.begin(); ptr < _matrixEntries.end(); ptr++) {
-        if(ptr->col() > max_column) { max_column = ptr->col(); };
-        if(ptr->row() > max_row) { max_row = ptr->row(); };
-    }
-    return std::make_tuple(max_row + 1, max_column + 1);
 }
 
 template class CrowdedFieldMatrix<float>;

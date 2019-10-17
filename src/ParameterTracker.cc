@@ -1,6 +1,5 @@
 
 #include "lsst/pipe/crowd/ParameterTracker.h"
-// #include "lsst/pex/exceptions/Exception.h"
 #include "lsst/pex/exceptions/Runtime.h"
 
 #include <vector>
@@ -34,7 +33,7 @@ void ParameterTracker::addSource(int sourceId) {
  * because we expect this to get built up before solving and
  * then not need to be accessed again.
  */
-int ParameterTracker::getPixelId(int pixelX, int pixelY) {
+int ParameterTracker::makePixelId(int pixelX, int pixelY) {
 
     int newPixelId;
     auto pixelMapEntry = _pixelMapping.find(std::make_tuple(pixelX, pixelY));
@@ -49,12 +48,29 @@ int ParameterTracker::getPixelId(int pixelX, int pixelY) {
 
 }
 
+int* ParameterTracker::getPixelId(int pixelX, int pixelY) {
+    auto pixelMapEntry = _pixelMapping.find(std::make_tuple(pixelX, pixelY));
+    if(pixelMapEntry != _pixelMapping.end()) {
+        return &pixelMapEntry->second;
+    } else {
+        return NULL;
+    }
+}
+
 int ParameterTracker::getSourceParameterId(int sourceId, int param) {
     auto result = _sourceParameterMapping.find(std::make_tuple(sourceId, param));
     if(result == _sourceParameterMapping.end()) {
         throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "Request for SourceParameter that does not exist.");
     }
     return result->second;
+}
+
+int ParameterTracker::nRows() {
+    return _pixelMapping.size();
+}
+
+int ParameterTracker::nColumns() {
+    return _sourceParameterMapping.size();
 }
 
 }

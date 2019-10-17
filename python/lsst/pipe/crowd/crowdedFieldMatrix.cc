@@ -31,15 +31,13 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
                                        afw::table::SourceCatalog *,
                                        afw::table::Key<float> >(),
                               "exposure"_a, "sourceCatalog"_a, "fluxKey"_a);
-            
+
     clsCrowdedFieldMatrix.def("_addSource", &CrowdedFieldMatrix<float>::_addSource);
 
     clsCrowdedFieldMatrix.def("solve", &CrowdedFieldMatrix<float>::solve);
 
-    clsCrowdedFieldMatrix.def("renameMatrixRows", &CrowdedFieldMatrix<float>::renameMatrixRows);
     clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
     clsCrowdedFieldMatrix.def("getDataVector", &CrowdedFieldMatrix<float>::getDataVector);
-    clsCrowdedFieldMatrix.def("getPixelMapping", &CrowdedFieldMatrix<float>::getPixelMapping);
     clsCrowdedFieldMatrix.def("getDebug", &CrowdedFieldMatrix<float>::getDebug);
 
 
