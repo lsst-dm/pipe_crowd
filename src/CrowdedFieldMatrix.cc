@@ -30,6 +30,8 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
                                                ndarray::Array<double const, 1> &y) :
             _exposure(exposure),
             _catalog(NULL),
+            _fitCentroids(false),
+            _centroidKey(afw::table::PointKey<double>()),
             _paramTracker(ParameterTracker(1))
 {
     _matrixEntries = _makeMatrixEntries(exposure, x, y);
@@ -39,11 +41,15 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
 template <typename PixelT>
 CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT> &exposure,
                                                afw::table::SourceCatalog *catalog,
-                                               afw::table::Key<float> fluxKey) :
+                                               afw::table::Key<float> fluxKey,
+                                               bool fitCentroids,
+                                               afw::table::PointKey<double> centroidKey) :
             _exposure(exposure),
             _catalog(catalog),
             _fluxKey(fluxKey),
-            _paramTracker(ParameterTracker(1))
+            _fitCentroids(fitCentroids),
+            _centroidKey(centroidKey),
+            _paramTracker(ParameterTracker(fitCentroids ? 3 : 1))
 {
     _matrixEntries = _makeMatrixEntries(exposure, catalog);
     _dataVector = makeDataVector();
@@ -89,7 +95,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
                                             int nStar, double x, double y) {
     using afw::image::Mask;
     using afw::image::MaskPixel;
-    std::shared_ptr<afw::detection::Psf::Image> psfImage;
+    std::shared_ptr<afw::detection::Psf::Image> psfImage, psfImage_dx, psfImage_dy;
     MaskPixel maskValue;
     Mask<MaskPixel> psfShapedMask;
     MaskPixel maskFlagsForRejection = Mask<MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR"});
@@ -99,6 +105,17 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
     clippedBBox = psfImage->getBBox();
     clippedBBox.clip(exposure.getMaskedImage().getBBox());
     psfShapedMask = Mask<MaskPixel>(*exposure.getMaskedImage().getMask(), clippedBBox);
+
+    float pixelNudge = 0.1;
+
+    if(_fitCentroids) {
+        psfImage_dx = exposure.getPsf()->computeImage(geom::Point2D(x + pixelNudge, y));
+        psfImage_dy = exposure.getPsf()->computeImage(geom::Point2D(x, y + pixelNudge));
+    }
+
+    // Assume that the XY0 only changes in the direction of the nudge
+    int pixelShift_dx = psfImage_dx->getX0() - psfImage->getX0();
+    int pixelShift_dy = psfImage_dx->getY0() - psfImage->getY0();
 
     _paramTracker.addSource(nStar);
 
@@ -110,11 +127,28 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
                 continue;
             }
 
-            PixelT psfValue = psfImage->get(geom::Point2I(x,y), afw::image::LOCAL);
+            PixelT psfValue = psfImage->get(geom::Point2I(x, y), afw::image::LOCAL);
             int pixelIndex = _paramTracker.makePixelId(psfImage->indexToPosition(x, afw::image::X),
                                                        psfImage->indexToPosition(y, afw::image::Y));
             int paramIndex = _paramTracker.getSourceParameterId(nStar, 0);
             matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue));
+
+            if(_fitCentroids && (x + pixelShift_dx >= 0) && (x + pixelShift_dx < psfImage->getWidth())) {
+                PixelT psfValue_dx = psfImage->get(geom::Point2I(x + pixelShift_dx, y), afw::image::LOCAL);
+                PixelT deriv_x = (psfValue - psfValue_dx)/pixelNudge;
+
+                int paramIndex = _paramTracker.getSourceParameterId(nStar, 1);
+                matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_x));
+            }
+
+            if(_fitCentroids && (y + pixelShift_dy >= 0) && (y + pixelShift_dy < psfImage->getHeight())) {
+                PixelT psfValue_dy = psfImage->get(geom::Point2I(x, y + pixelShift_dy), afw::image::LOCAL);
+                PixelT deriv_y = (psfValue - psfValue_dy)/pixelNudge;
+
+                int paramIndex = _paramTracker.getSourceParameterId(nStar, 2);
+                matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_y));
+            }
+
         }
     }
 }
@@ -174,7 +208,12 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
     if(_catalog) {
         size_t n = 0;
         for(auto rec = _catalog->begin(); rec < _catalog->end(); ++rec, ++n) {
-            rec->set(_fluxKey, result(n, 0));
+            rec->set(_fluxKey, result(_paramTracker.getSourceParameterId(n, 0), 0));
+            if(_fitCentroids && _centroidKey.isValid()) {
+                auto deltaCentroid = geom::Extent2D(result(_paramTracker.getSourceParameterId(n, 1), 0),
+                                                    result(_paramTracker.getSourceParameterId(n, 2), 0));
+                rec->set(_centroidKey, rec->getCentroid() + deltaCentroid);
+            }
         }
     }
 
