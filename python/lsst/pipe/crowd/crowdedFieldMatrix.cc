@@ -7,6 +7,7 @@
 #include "pybind11/stl.h"
 #include "pybind11/eigen.h"
 
+#include "lsst/afw/table.h"
 #include "lsst/afw/table/io/python.h"
 #include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
 
@@ -29,8 +30,11 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
 
     clsCrowdedFieldMatrix.def(py::init<const afw::image::Exposure<float> &,
                                        afw::table::SourceCatalog *,
-                                       afw::table::Key<float> >(),
-                              "exposure"_a, "sourceCatalog"_a, "fluxKey"_a);
+                                       afw::table::Key<float>,
+                                       bool,
+                                       afw::table::PointKey<double>>(),
+                              "exposure"_a, "sourceCatalog"_a, "fluxKey"_a, "fitCentroids"_a=false,
+                              "centroidKey"_a=afw::table::PointKey<double>());
 
     clsCrowdedFieldMatrix.def("_addSource", &CrowdedFieldMatrix<float>::_addSource);
 

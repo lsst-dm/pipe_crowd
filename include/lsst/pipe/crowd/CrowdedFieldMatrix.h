@@ -23,7 +23,9 @@ public:
 
     CrowdedFieldMatrix(const afw::image::Exposure<PixelT> &exposure,
                        afw::table::SourceCatalog *catalog,
-                       afw::table::Key<float> fluxKey);
+                       afw::table::Key<float> fluxKey,
+                       bool fitCentroids = true,
+                       afw::table::PointKey<double> centroidKey = afw::table::PointKey<double>());
 
     void _addSource(const afw::image::Exposure<PixelT> &exposure,
                            std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
@@ -50,10 +52,12 @@ private:
     const afw::image::Exposure<PixelT> _exposure;
     afw::table::SourceCatalog *_catalog;
     afw::table::Key<float> _fluxKey;
-    std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
-    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> _dataVector;
+    const bool _fitCentroids;
+    afw::table::PointKey<double> _centroidKey;
     ParameterTracker _paramTracker;
 
+    std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> _dataVector;
 
 };
 
