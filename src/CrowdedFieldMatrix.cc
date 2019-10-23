@@ -41,7 +41,7 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
 template <typename PixelT>
 CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT> &exposure,
                                                afw::table::SourceCatalog *catalog,
-                                               afw::table::Key<float> fluxKey,
+                                               afw::table::Key<double> fluxKey,
                                                bool fitCentroids,
                                                afw::table::PointKey<double> centroidKey) :
             _exposure(exposure),
@@ -83,8 +83,12 @@ std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntri
     afw::geom::Point2D centroid;
     size_t n = 0;
     for(auto rec = catalog->begin(); rec < catalog->end(); ++rec, ++n) {
+        PixelT estFlux = PixelT();
         centroid = rec->getCentroid();
-        _addSource(exposure, matrixEntries, n, centroid[0], centroid[1]);
+        if(_fitCentroids) {
+            estFlux = rec->getPsfInstFlux();
+        }
+        _addSource(exposure, matrixEntries, n, centroid[0], centroid[1], estFlux);
     }
     return matrixEntries;
 }
@@ -92,7 +96,7 @@ std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntri
 template <typename PixelT>
 void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &exposure,
                                             std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
-                                            int nStar, double x, double y) {
+                                            int nStar, double x, double y, PixelT estFlux) {
     using afw::image::Mask;
     using afw::image::MaskPixel;
     std::shared_ptr<afw::detection::Psf::Image> psfImage, psfImage_dx, psfImage_dy;
@@ -107,7 +111,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
     clippedBBox.clip(exposure.getMaskedImage().getBBox());
     psfShapedMask = Mask<MaskPixel>(*exposure.getMaskedImage().getMask(), clippedBBox);
 
-    float pixelNudge = 0.1;
+    float pixelNudge = 1.0;
 
     if(_fitCentroids) {
         psfImage_dx = exposure.getPsf()->computeImage(geom::Point2D(x + pixelNudge, y));
@@ -115,7 +119,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 
         // Assume that the XY0 only changes in the direction of the nudge
         pixelShift_dx = psfImage_dx->getX0() - psfImage->getX0();
-        pixelShift_dy = psfImage_dx->getY0() - psfImage->getY0();
+        pixelShift_dy = psfImage_dy->getY0() - psfImage->getY0();
     }
 
 
@@ -137,7 +141,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 
             if(_fitCentroids && (x + pixelShift_dx >= 0) && (x + pixelShift_dx < psfImage->getWidth())) {
                 PixelT psfValue_dx = psfImage->get(geom::Point2I(x + pixelShift_dx, y), afw::image::LOCAL);
-                PixelT deriv_x = (psfValue - psfValue_dx)/pixelNudge;
+                PixelT deriv_x = estFlux * (psfValue - psfValue_dx)/pixelNudge;
 
                 int paramIndex = _paramTracker.getSourceParameterId(nStar, 1);
                 matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_x));
@@ -145,7 +149,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 
             if(_fitCentroids && (y + pixelShift_dy >= 0) && (y + pixelShift_dy < psfImage->getHeight())) {
                 PixelT psfValue_dy = psfImage->get(geom::Point2I(x, y + pixelShift_dy), afw::image::LOCAL);
-                PixelT deriv_y = (psfValue - psfValue_dy)/pixelNudge;
+                PixelT deriv_y = estFlux * (psfValue - psfValue_dy)/pixelNudge;
 
                 int paramIndex = _paramTracker.getSourceParameterId(nStar, 2);
                 matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_y));
@@ -220,6 +224,16 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
     }
 
     return result;
+}
+
+template <typename PixelT>
+const std::map<std::tuple<int, int>, int> CrowdedFieldMatrix<PixelT>::getParameterMapping() {
+    return _paramTracker.getParameterMapping();
+}
+
+template <typename PixelT>
+const std::map<std::tuple<int, int>, int> CrowdedFieldMatrix<PixelT>::getPixelMapping() {
+    return _paramTracker.getPixelMapping();
 }
 
 template class CrowdedFieldMatrix<float>;

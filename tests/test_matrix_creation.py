@@ -12,6 +12,7 @@ import lsst.pex.exceptions.wrappers
 from collections import Counter
 from lsst.geom import Point2D
 
+
 def add_psf_image(exposure, x, y, flux):
 
     psfImg = exposure.getPsf().computeImage(Point2D(x, y))
@@ -58,7 +59,7 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         schema = afwTable.SourceTable.makeMinimalSchema()
         schema.addField("centroid_x", type=np.float64)
         schema.addField("centroid_y", type=np.float64)
-        flux_key = schema.addField("flux_flux", type=np.float32)
+        flux_key = schema.addField("flux_flux", type=np.float64)
         schema.getAliasMap().set("slot_Centroid", "centroid")
         testCatalog = afwTable.SourceCatalog(schema)
         for n in range(20):
@@ -133,7 +134,7 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         schema = afwTable.SourceTable.makeMinimalSchema()
         schema.addField("centroid_x", type=np.float64)
         schema.addField("centroid_y", type=np.float64)
-        flux_key = schema.addField("flux_flux", type=np.float32)
+        flux_key = schema.addField("flux_flux", type=np.float64)
         schema.getAliasMap().set("slot_Centroid", "centroid")
         testCatalog = afwTable.SourceCatalog(schema)
         for x, y in zip([200.0, 210.0], [400.0, 210]):
@@ -185,4 +186,56 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
 
         self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0]), atol=1e-3);
 
+    def test_solve_centroid(self):
+        exposure = ExposureF(400, 400)
+        psfConfig = InstallGaussianPsfConfig()
+        psfConfig.fwhm = 4
+        psfTask = InstallGaussianPsfTask(config=psfConfig)
+        psfTask.run(exposure=exposure)
+
+        add_psf_image(exposure, 200.0, 200.0, 600.0)
+        # exposure.image.array += 20*np.random.randn(*exposure.image.array.shape)
+
+
+        schema = afwTable.SourceTable.makeMinimalSchema()
+        simultaneousPsfFlux_key = schema.addField(
+            "crowd_psfFlux_flux_instFlux", type=np.float64,
+            doc="PSF Flux from simultaneous fitting")
+        afwTable.Point2DKey.addFields(schema,
+                                      "coarse_centroid",
+                                      "Detection peak", "pixels")
+        centroid_key = afwTable.Point2DKey.addFields(schema,
+                                      "new_centroid",
+                                      "Measurement of centroid", "pixels")
+        schema.getAliasMap().set("slot_Centroid",
+                                 "coarse_centroid")
+        schema.getAliasMap().set("slot_PsfFlux",
+                                 "crowd_psfFlux_flux")
+        source_catalog = afwTable.SourceCatalog(schema)
+        child = source_catalog.addNew()
+        child['coarse_centroid_x'] = 200.0
+        child['coarse_centroid_y'] = 200.5
+
+        # Fit once with fixed positions to get the fluxes
+        matrix = CrowdedFieldMatrix(exposure,
+                                    source_catalog,
+                                    simultaneousPsfFlux_key,
+                                    fitCentroids=False,
+                                    centroidKey=centroid_key)
+        matrix.solve()
+
+        # Now that we have rough fluxes, re-fit and allow
+        # centroids to move.
+        matrix = CrowdedFieldMatrix(exposure,
+                                    source_catalog,
+                                    simultaneousPsfFlux_key,
+                                    fitCentroids=True,
+                                    centroidKey=centroid_key)
+
+        result = matrix.solve()
+
+        self.assertFloatsAlmostEqual(source_catalog[0]['new_centroid_x'],
+                                     200.0, atol=5e-2);
+        self.assertFloatsAlmostEqual(source_catalog[0]['new_centroid_y'],
+                                     200.0, atol=5e-2);
 

@@ -19,6 +19,10 @@ public:
 
     int getSourceParameterId(int sourceId, int param);
 
+    // For debugging.
+    std::map<std::tuple<int, int>, int> getParameterMapping();
+    std::map<std::tuple<int, int>, int> getPixelMapping();
+
     int nRows();
     int nColumns();
 

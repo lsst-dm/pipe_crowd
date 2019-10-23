@@ -30,7 +30,7 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
 
     clsCrowdedFieldMatrix.def(py::init<const afw::image::Exposure<float> &,
                                        afw::table::SourceCatalog *,
-                                       afw::table::Key<float>,
+                                       afw::table::Key<double>,
                                        bool,
                                        afw::table::PointKey<double>>(),
                               "exposure"_a, "sourceCatalog"_a, "fluxKey"_a, "fitCentroids"_a=false,
@@ -43,6 +43,9 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
     clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
     clsCrowdedFieldMatrix.def("getDataVector", &CrowdedFieldMatrix<float>::getDataVector);
 
+    // debugging
+    clsCrowdedFieldMatrix.def("_getParameterMapping", &CrowdedFieldMatrix<float>::getParameterMapping);
+    clsCrowdedFieldMatrix.def("_getPixelMapping", &CrowdedFieldMatrix<float>::getPixelMapping);
 }
 }
 }

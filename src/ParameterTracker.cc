@@ -65,6 +65,15 @@ int ParameterTracker::getSourceParameterId(int sourceId, int param) {
     return result->second;
 }
 
+
+std::map<std::tuple<int, int>, int> ParameterTracker::getParameterMapping() {
+    return _sourceParameterMapping;
+}
+
+std::map<std::tuple<int, int>, int> ParameterTracker::getPixelMapping() {
+    return _pixelMapping;
+}
+
 int ParameterTracker::nRows() {
     return _pixelMapping.size();
 }
