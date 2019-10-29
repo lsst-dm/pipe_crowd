@@ -36,6 +36,18 @@ class CrowdedFieldTaskConfig(pexConfig.Config):
         doc="Number of detect-measure-subtract iterations",
     )
 
+    fitSimultaneousPositions = pexConfig.Field(
+        dtype=bool,
+        default=False,
+        doc="Include the source positions when fitting for fluxes?",
+    )
+
+    def validate(self):
+        super().validate()
+        if(self.fitSimultaneousPositions):
+           raise ValueError("fitSimultaneousPositions not currently supported.")
+
+
 class CrowdedFieldTask(pipeBase.CmdLineTask):
     ConfigClass = CrowdedFieldTaskConfig
     RunnerClass = pipeBase.TaskRunner
@@ -62,18 +74,19 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         pipeBase.CmdLineTask.__init__(self, **kwargs)
         self.schema = afwTable.SourceTable.makeMinimalSchema()
         self.simultaneousPsfFlux_key = self.schema.addField(
-            "crowd_psfFlux_flux", type=np.float32,
+            "crowd_psfFlux_flux_instFlux", type=np.float64,
             doc="PSF Flux from simultaneous fitting")
-        afwTable.Point2DKey.addFields(self.schema,
-                                      "coarse_centroid",
-                                      "Detection peak", "pixels")
+        self.schema.getAliasMap().set("slot_PsfFlux",
+                                      "crowd_psfFlux_flux")
+        self.centroid_key = afwTable.Point2DKey.addFields(self.schema,
+                                                          "coarse_centroid",
+                                                          "Detection peak", "pixels")
         self.schema.getAliasMap().set("slot_Centroid",
                                       "coarse_centroid")
 
         self.makeSubtask("detection", schema=self.schema)
         self.makeSubtask("centroid", schema=self.schema)
         self.makeSubtask("subtraction")
-
 
     @pipeBase.timeMethod
     def runDataRef(self, sensorRef):
@@ -84,7 +97,6 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
 
         sensorRef.put(source_catalog, "crowdedsrc")
         sensorRef.put(exposure, "subtractedimg")
-
 
     @pipeBase.timeMethod
     def run(self, exposure):
