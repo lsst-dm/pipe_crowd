@@ -12,14 +12,14 @@ import lsst.afw.detection as afwDetection
 from lsst.meas.base import SdssCentroidAlgorithm, SdssCentroidControl
 from lsst.meas.base import MeasurementError
 
-from .subtraction import CatalogPsfSubtractTask
+from .modelImage import ModelImageTask
 
 class CrowdedCentroidTaskConfig(pexConfig.Config):
     """Config for CrowdedCentroidTask"""
 
-    subtraction = pexConfig.ConfigurableField(
-            target=CatalogPsfSubtractTask,
-            doc="Subtract sources from image"
+    modelImage = pexConfig.ConfigurableField(
+            target=ModelImageTask,
+            doc="Tools for manipulating model images"
     )
 
 class CrowdedCentroidTask(pipeBase.Task):
@@ -32,7 +32,7 @@ class CrowdedCentroidTask(pipeBase.Task):
         self.sdssCentroid = SdssCentroidAlgorithm(self.centroid_control,
                                                   "centroid",
                                                   schema)
-        self.makeSubtask("subtraction")
+        self.makeSubtask("modelImage")
 
     @pipeBase.timeMethod
     def run(self, exposure, catalog, flux_key):
@@ -41,8 +41,8 @@ class CrowdedCentroidTask(pipeBase.Task):
         self.subtraction.run(subtracted_exposure, catalog, flux_key)
 
         for source in catalog:
-            with self.subtraction.replaced_source(subtracted_exposure,
-                                                  source, flux_key):
+            with self.modelImage.replaced_source(subtracted_exposure,
+                                                 source, flux_key):
                 spanSet = afwGeom.SpanSet.fromShape(5)
                 spanSet = spanSet.shiftedBy(Extent2I(source.getCentroid()))
                 footprint = afwDetection.Footprint(spanSet)

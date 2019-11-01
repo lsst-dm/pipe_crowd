@@ -9,7 +9,7 @@ from lsst.meas.algorithms import SourceDetectionTask, SourceDetectionConfig
 from lsst.pipe.base import ArgumentParser
 
 from .crowdedFieldMatrix import CrowdedFieldMatrix
-from .subtraction import CatalogPsfSubtractTask, CatalogPsfSubtractTaskConfig
+from .modelImage import ModelImageTask, ModelImageTaskConfig
 from .centroid import CrowdedCentroidTask, CrowdedCentroidTaskConfig
 
 class CrowdedFieldTaskConfig(pexConfig.Config):
@@ -25,9 +25,9 @@ class CrowdedFieldTaskConfig(pexConfig.Config):
             doc="Detect sources"
     )
 
-    subtraction = pexConfig.ConfigurableField(
-            target=CatalogPsfSubtractTask,
-            doc="Subtract sources from image"
+    modelImageTask = pexConfig.ConfigurableField(
+            target=ModelImageTask,
+            doc="Task for manipulating model images"
     )
 
     num_iterations = pexConfig.Field(
@@ -86,7 +86,7 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
 
         self.makeSubtask("detection", schema=self.schema)
         self.makeSubtask("centroid", schema=self.schema)
-        self.makeSubtask("subtraction")
+        self.makeSubtask("modelImageTask")
 
     @pipeBase.timeMethod
     def runDataRef(self, sensorRef):
@@ -109,9 +109,9 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
             if(len(source_catalog) > 0):
                 residual_exposure = afwImage.ExposureF(exposure, deep=True)
 
-                self.subtraction.run(residual_exposure,
-                                     source_catalog,
-                                     self.simultaneousPsfFlux_key)
+                self.modelImageTask.makeModelSubtractedImage(residual_exposure,
+                                                             source_catalog,
+                                                             self.simultaneousPsfFlux_key)
             else:
                 residual_exposure = exposure
 
@@ -150,9 +150,9 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         self.log.info("Final source catalog length: %d", len(source_catalog))
 
         # Subtract in-place
-        self.subtraction.run(exposure,
-                             source_catalog,
-                             self.simultaneousPsfFlux_key)
+        self.modelImageTask.makeModelSubtractedImage(exposure,
+                                                     source_catalog,
+                                                     self.simultaneousPsfFlux_key)
 
         return source_catalog
 
