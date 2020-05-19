@@ -7,7 +7,7 @@
 #include "lsst/meas/algorithms/ImagePsf.h"
 #include "lsst/log/Log.h"
 #include "lsst/afw/detection/Psf.h"
-#include "lsst/afw/geom/Point.h"
+#include "lsst/geom/Point.h"
 #include "lsst/afw/image/Mask.h"
 
 #include "lsst/pipe/crowd/CrowdedFieldMatrix.h"
@@ -80,7 +80,7 @@ std::vector<Eigen::Triplet<PixelT>> CrowdedFieldMatrix<PixelT>::_makeMatrixEntri
         throw LSST_EXCEPT(lsst::pex::exceptions::RuntimeError, "sourceCatalog is NULL");
     }
     std::vector<Eigen::Triplet<PixelT>> matrixEntries;
-    afw::geom::Point2D centroid;
+    geom::Point2D centroid;
     size_t n = 0;
     for(auto rec = catalog->begin(); rec < catalog->end(); ++rec, ++n) {
         PixelT estFlux = PixelT();

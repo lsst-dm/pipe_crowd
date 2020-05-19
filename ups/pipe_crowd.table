@@ -1,6 +1,6 @@
 setupRequired(pipe_tasks)
 setupRequired(base)
-setupRequired(ndarray)
+# setupRequired(ndarray)
 setupRequired(afw)
 setupRequired(meas_algorithms)
 setupRequired(eigen)
