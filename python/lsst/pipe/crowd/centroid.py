@@ -38,7 +38,7 @@ class CrowdedCentroidTask(pipeBase.Task):
     def run(self, exposure, catalog, flux_key):
 
         subtracted_exposure = afwImage.ExposureF(exposure, deep=True)
-        self.subtraction.run(subtracted_exposure, catalog, flux_key)
+        self.modelImage.run(subtracted_exposure, catalog, flux_key)
 
         for source in catalog:
             with self.modelImage.replaced_source(subtracted_exposure,
