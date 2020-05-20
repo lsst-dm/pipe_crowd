@@ -36,6 +36,12 @@ class CrowdedFieldTaskConfig(pexConfig.Config):
         doc="Number of detect-measure-subtract iterations",
     )
 
+    peak_significance_cutoff = pexConfig.Field(
+        dtype=float,
+        default=0.4,
+        doc="Minimum signifiance ratio between new peaks and the existing model",
+    )
+
     fitSimultaneousPositions = pexConfig.Field(
         dtype=bool,
         default=False,
@@ -109,17 +115,37 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
             if(len(source_catalog) > 0):
                 residual_exposure = afwImage.ExposureF(exposure, deep=True)
 
-                self.modelImageTask.makeModelSubtractedImage(residual_exposure,
-                                                             source_catalog,
-                                                             self.simultaneousPsfFlux_key)
+                # This subtracts the model from its input in place.
+                # Needs to have a better name than just run.
+                model_image = self.modelImageTask.run(residual_exposure,
+                                                      source_catalog,
+                                                      self.simultaneousPsfFlux_key)
+
+                model_convolution = self.detection.convolveImage(model_image,
+                                                                        exposure.getPsf(),
+                                                                        doSmooth=True)
+                # .middle refers to only the inside area of the convolved image,
+                # away from edges, having meaningful data.
+                model_significance_image = model_convolution.middle
+
             else:
                 residual_exposure = exposure
-
+                model_image = None
+                model_significance_image = None
 
             detRes = self.detection.run(detection_catalog, residual_exposure)
 
             for source in detRes.sources:
                 for peak in source.getFootprint().peaks:
+
+                    # If this is round >=2, short circuit on insignificant
+                    # peaks.
+                    if model_image is not None:
+                        # Add a 1e-6 epsilon to prevent divide-by-zero
+                        model_sig = model_significance_image.getImage()[peak.getF()] + 1e-6
+                        value_ratio = peak.getPeakValue()/model_sig
+                        if(value_ratio < self.config.peak_significance_cutoff):
+                            continue
                     child = source_catalog.addNew()
                     child['coarse_centroid_x'] = peak.getFx()
                     child['coarse_centroid_y'] = peak.getFy()
