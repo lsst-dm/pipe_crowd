@@ -208,6 +208,7 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
     paramMatrix.setFromTriplets(_matrixEntries.begin(), _matrixEntries.end());
 
     Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<PixelT>> lscg;
+    lscg.setTolerance(1e-6);
     lscg.compute(paramMatrix);
     result = lscg.solve(_dataVector);
 
