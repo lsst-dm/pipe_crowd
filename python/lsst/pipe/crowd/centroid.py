@@ -38,12 +38,15 @@ class CrowdedCentroidTask(pipeBase.Task):
     def run(self, exposure, catalog, flux_key):
 
         subtracted_exposure = afwImage.ExposureF(exposure, deep=True)
-        self.modelImage.run(subtracted_exposure, catalog, flux_key)
+        model = self.modelImage.run(subtracted_exposure, catalog, flux_key)
 
         for source in catalog:
             with self.modelImage.replaced_source(subtracted_exposure,
                                                  source, flux_key):
-                spanSet = afwGeom.SpanSet.fromShape(5)
+
+                # This parameter is the radius of the spanset
+                # Changing the radius doesn't seem to affect SDSS Centroid?
+                spanSet = afwGeom.SpanSet.fromShape(3)
                 spanSet = spanSet.shiftedBy(Extent2I(source.getCentroid()))
                 footprint = afwDetection.Footprint(spanSet)
                 peak = footprint.peaks.addNew()
@@ -57,7 +60,7 @@ class CrowdedCentroidTask(pipeBase.Task):
                 source.setFootprint(footprint)
 
                 try:
-                    self.sdssCentroid.measure(source, exposure)
+                    self.sdssCentroid.measure(source, subtracted_exposure)
                 except (MeasurementError):
                     pass
 
