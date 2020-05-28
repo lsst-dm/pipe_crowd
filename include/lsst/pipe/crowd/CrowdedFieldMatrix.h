@@ -13,6 +13,10 @@ namespace lsst {
 namespace pipe {
 namespace crowd {
 
+enum SolverStatus {
+    SUCCESS = 0,
+    FAILURE
+};
 
 template <typename PixelT>
 class CrowdedFieldMatrix {
@@ -41,7 +45,7 @@ public:
                        const afw::image::Exposure<PixelT> &exposure,
                        afw::table::SourceCatalog *catalog);
 
-    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> solve();
+    SolverStatus solve();
 
     const std::list<std::tuple<int, int, PixelT>> getMatrixEntries();
     const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> makeDataVector();
@@ -49,6 +53,10 @@ public:
 
     const std::map<std::tuple<int, int>, int> getParameterMapping();
     const std::map<std::tuple<int, int>, int> getPixelMapping();
+
+    int iterations();
+
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> result();
 
 private:
 
@@ -58,6 +66,9 @@ private:
     const bool _fitCentroids;
     afw::table::PointKey<double> _centroidKey;
     ParameterTracker _paramTracker;
+    int _iterations;
+    int _maxIterations;
+    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> _result;
 
     std::vector<Eigen::Triplet<PixelT>> _matrixEntries;
     Eigen::Matrix<PixelT, Eigen::Dynamic, 1> _dataVector;

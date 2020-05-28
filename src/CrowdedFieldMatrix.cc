@@ -32,7 +32,9 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
             _catalog(NULL),
             _fitCentroids(false),
             _centroidKey(afw::table::PointKey<double>()),
-            _paramTracker(ParameterTracker(1))
+            _paramTracker(ParameterTracker(1)),
+            _iterations(0),
+            _maxIterations(500)
 {
     _matrixEntries = _makeMatrixEntries(exposure, x, y);
     _dataVector = makeDataVector();
@@ -49,7 +51,9 @@ CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT
             _fluxKey(fluxKey),
             _fitCentroids(fitCentroids),
             _centroidKey(centroidKey),
-            _paramTracker(ParameterTracker(fitCentroids ? 3 : 1))
+            _paramTracker(ParameterTracker(fitCentroids ? 3 : 1)),
+            _iterations(0),
+            _maxIterations(500)
 {
     _matrixEntries = _makeMatrixEntries(exposure, catalog);
     _dataVector = makeDataVector();
@@ -194,11 +198,10 @@ const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeD
 }
 
 template <typename PixelT>
-Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
+SolverStatus CrowdedFieldMatrix<PixelT>::solve() {
 
 
     Eigen::SparseMatrix<PixelT> paramMatrix;
-    Eigen::Matrix<PixelT, Eigen::Dynamic, 1> result;
 
     LOGL_INFO(_log, "parameter matrix size %i rows, %i cols",
               _paramTracker.nRows(), _paramTracker.nColumns());
@@ -209,22 +212,37 @@ Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::solve() {
 
     Eigen::LeastSquaresConjugateGradient<Eigen::SparseMatrix<PixelT>> lscg;
     lscg.setTolerance(1e-6);
+    lscg.setMaxIterations(_maxIterations);
     lscg.compute(paramMatrix);
-    result = lscg.solve(_dataVector);
+    _result = lscg.solve(_dataVector);
+
 
     if(_catalog) {
         size_t n = 0;
         for(auto rec = _catalog->begin(); rec < _catalog->end(); ++rec, ++n) {
-            rec->set(_fluxKey, result(_paramTracker.getSourceParameterId(n, 0), 0));
+            rec->set(_fluxKey, _result(_paramTracker.getSourceParameterId(n, 0), 0));
             if(_fitCentroids && _centroidKey.isValid()) {
-                auto deltaCentroid = geom::Extent2D(result(_paramTracker.getSourceParameterId(n, 1), 0),
-                                                    result(_paramTracker.getSourceParameterId(n, 2), 0));
+                auto deltaCentroid = geom::Extent2D(_result(_paramTracker.getSourceParameterId(n, 1), 0),
+                                                    _result(_paramTracker.getSourceParameterId(n, 2), 0));
                 rec->set(_centroidKey, rec->getCentroid() + deltaCentroid);
             }
         }
     }
 
-    return result;
+    _iterations = lscg.iterations();
+    if(_iterations == _maxIterations) {
+        LOGL_WARN(_log, "eigen failed to solve in %i iterations", _iterations);
+        return SolverStatus::FAILURE;
+    } else {
+        LOGL_INFO(_log, "eigen solved in %i iterations", _iterations);
+        return SolverStatus::SUCCESS;
+    }
+
+}
+
+template <typename PixelT>
+Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::result() {
+    return _result;
 }
 
 template <typename PixelT>

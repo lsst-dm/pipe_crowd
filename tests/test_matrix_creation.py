@@ -116,7 +116,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         matrix = CrowdedFieldMatrix(exposure,
                                     np.array([200.0, 210.0, 5.0, 300.0]),
                                     np.array([400.0, 210.0, 210.0, 5.0]))
-        result = matrix.solve()
+        status = matrix.solve()
+        self.assertEqual(status, matrix.SUCCESS)
+        result = matrix.result()
 
         self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0, 400.0,
                                                        500.0]), atol=1e-3);
@@ -164,7 +166,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         matrix = CrowdedFieldMatrix(exposure,
                                     np.array([200.0, 210.0]),
                                     np.array([400.0, 210.0]))
-        result = matrix.solve()
+        status = matrix.solve()
+        self.assertEqual(status, matrix.SUCCESS)
+        result = matrix.result()
 
         self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0]), atol=1e-3);
 
@@ -182,7 +186,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         matrix = CrowdedFieldMatrix(exposure,
                                     np.array([200.0, 210.0]),
                                     np.array([400.0, 210.0]))
-        result = matrix.solve()
+        status = matrix.solve()
+        self.assertEqual(status, matrix.SUCCESS)
+        result = matrix.result()
 
         self.assertFloatsAlmostEqual(result, np.array([600.0, 300.0]), atol=1e-3);
 

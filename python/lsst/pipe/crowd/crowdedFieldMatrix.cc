@@ -39,9 +39,17 @@ PYBIND11_MODULE(crowdedFieldMatrix, mod) {
     clsCrowdedFieldMatrix.def("_addSource", &CrowdedFieldMatrix<float>::_addSource);
 
     clsCrowdedFieldMatrix.def("solve", &CrowdedFieldMatrix<float>::solve);
+    clsCrowdedFieldMatrix.def("result", &CrowdedFieldMatrix<float>::result);
 
     clsCrowdedFieldMatrix.def("getMatrixEntries", &CrowdedFieldMatrix<float>::getMatrixEntries);
     clsCrowdedFieldMatrix.def("getDataVector", &CrowdedFieldMatrix<float>::getDataVector);
+
+
+    py::enum_<SolverStatus>(clsCrowdedFieldMatrix, "SolverStatus")
+        .value("SUCCESS", SolverStatus::SUCCESS)
+        .value("FAILURE", SolverStatus::FAILURE)
+        .export_values();
+
 
     // debugging
     clsCrowdedFieldMatrix.def("_getParameterMapping", &CrowdedFieldMatrix<float>::getParameterMapping);
