@@ -100,6 +100,8 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         exposure = sensorRef.get("calexp")
 
         source_catalog = self.run(exposure)
+        if(source_catalog is None):
+            return
 
         sensorRef.put(source_catalog, "crowdedsrc")
         sensorRef.put(exposure, "subtractedimg")
@@ -155,7 +157,10 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
 
             solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
                                                self.simultaneousPsfFlux_key)
-            solver_matrix.solve()
+            status = solver_matrix.solve()
+            if(status != solver_matrix.SUCCESS):
+                self.log.error(f"Matrix solution failed on iteration {detection_round}")
+                return None
 
             source_catalog.schema.getAliasMap().set("slot_Centroid",
                                                     "coarse_centroid")
@@ -171,7 +176,10 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
             # Now that we have more precise centroids, re-fit the fluxes
             solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
                                                self.simultaneousPsfFlux_key)
-            solver_matrix.solve()
+            status = solver_matrix.solve()
+            if(status != solver_matrix.SUCCESS):
+                self.log.error(f"Matrix solution failed on iteration {detection_round}")
+                return None
 
         self.log.info("Final source catalog length: %d", len(source_catalog))
 

@@ -22,7 +22,7 @@ namespace pipe {
 namespace crowd {
 
 
-LOG_LOGGER _log = LOG_GET("pipe.crowd");
+LOG_LOGGER _log = LOG_GET("lsst.pipe.crowd.CrowdedFieldMatrix");
 
 template <typename PixelT>
 CrowdedFieldMatrix<PixelT>::CrowdedFieldMatrix(const afw::image::Exposure<PixelT> &exposure,
