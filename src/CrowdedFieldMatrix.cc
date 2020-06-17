@@ -129,8 +129,8 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 
     _paramTracker.addSource(nStar);
 
-    for (int y = 0; y != psfImage->getHeight(); ++y) {
-        for (int x = 0; x != psfImage->getWidth(); ++x) {
+    for (int y = 0; y != clippedBBox.getHeight(); ++y) {
+        for (int x = 0; x != clippedBBox.getWidth(); ++x) {
 
             maskValue = psfShapedMask.get(geom::Point2I(x,y), afw::image::LOCAL);
             if((maskValue & maskFlagsForRejection) > 0) {
