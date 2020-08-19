@@ -99,12 +99,13 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
 
         exposure = sensorRef.get("calexp")
 
-        source_catalog = self.run(exposure)
-        if(source_catalog is None):
+        result = self.run(exposure)
+        if(result.source_catalog is None):
             return
 
-        sensorRef.put(source_catalog, "crowdedsrc")
+        sensorRef.put(result.source_catalog, "crowdedsrc")
         sensorRef.put(exposure, "subtractedimg")
+        sensorRef.put(result.model_image, "modelimg")
 
     @pipeBase.timeMethod
     def run(self, exposure):
@@ -188,6 +189,10 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
                                                      source_catalog,
                                                      self.simultaneousPsfFlux_key)
 
-        return source_catalog
+        model_image = self.modelImageTask.run(exposure, source_catalog,
+                                              self.simultaneousPsfFlux_key)
+
+        return pipeBase.Struct(source_catalog=source_catalog,
+                               model_image=model_image)
 
 
