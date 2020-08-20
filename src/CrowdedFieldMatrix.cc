@@ -101,12 +101,14 @@ template <typename PixelT>
 void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &exposure,
                                             std::vector<Eigen::Triplet<PixelT>> &matrixEntries,
                                             int nStar, double x, double y, PixelT estFlux) {
+    using afw::image::Image;
     using afw::image::Mask;
     using afw::image::MaskPixel;
+    using afw::image::VariancePixel;
     std::shared_ptr<afw::detection::Psf::Image> psfImage, psfImage_dx, psfImage_dy;
     int pixelShift_dx, pixelShift_dy;
-    MaskPixel maskValue;
     Mask<MaskPixel> psfShapedMask;
+    Image<VariancePixel> psfShapedVariance;
     MaskPixel maskFlagsForRejection = Mask<MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR"});
     geom::Box2I clippedBBox;
 
@@ -114,6 +116,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
     clippedBBox = psfImage->getBBox();
     clippedBBox.clip(exposure.getMaskedImage().getBBox());
     psfShapedMask = Mask<MaskPixel>(*exposure.getMaskedImage().getMask(), clippedBBox);
+    psfShapedVariance = Image<VariancePixel>(*exposure.getMaskedImage().getVariance(), clippedBBox);
 
     float pixelNudge = 1.0;
 
@@ -132,20 +135,24 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
     for (int y = 0; y != clippedBBox.getHeight(); ++y) {
         for (int x = 0; x != clippedBBox.getWidth(); ++x) {
 
+            MaskPixel maskValue;
             maskValue = psfShapedMask.get(geom::Point2I(x,y), afw::image::LOCAL);
             if((maskValue & maskFlagsForRejection) > 0) {
                 continue;
             }
 
+            VariancePixel varianceValue;
+            varianceValue = psfShapedVariance.get(geom::Point2I(x,y), afw::image::LOCAL);
+
             PixelT psfValue = psfImage->get(geom::Point2I(x, y), afw::image::LOCAL);
             int pixelIndex = _paramTracker.makePixelId(psfImage->indexToPosition(x, afw::image::X),
                                                        psfImage->indexToPosition(y, afw::image::Y));
             int paramIndex = _paramTracker.getSourceParameterId(nStar, 0);
-            matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue));
+            matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue/pow(varianceValue, 2)));
 
             if(_fitCentroids && (x + pixelShift_dx >= 0) && (x + pixelShift_dx < psfImage->getWidth())) {
                 PixelT psfValue_dx = psfImage->get(geom::Point2I(x + pixelShift_dx, y), afw::image::LOCAL);
-                PixelT deriv_x = estFlux * (psfValue - psfValue_dx)/pixelNudge;
+                PixelT deriv_x = estFlux/pow(varianceValue, 2) * (psfValue - psfValue_dx)/pixelNudge;
 
                 int paramIndex = _paramTracker.getSourceParameterId(nStar, 1);
                 matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_x));
@@ -153,7 +160,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 
             if(_fitCentroids && (y + pixelShift_dy >= 0) && (y + pixelShift_dy < psfImage->getHeight())) {
                 PixelT psfValue_dy = psfImage->get(geom::Point2I(x, y + pixelShift_dy), afw::image::LOCAL);
-                PixelT deriv_y = estFlux * (psfValue - psfValue_dy)/pixelNudge;
+                PixelT deriv_y = estFlux /pow(varianceValue, 2)* (psfValue - psfValue_dy)/pixelNudge;
 
                 int paramIndex = _paramTracker.getSourceParameterId(nStar, 2);
                 matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_y));
@@ -181,17 +188,17 @@ template <typename PixelT>
 const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeDataVector() {
 
     Eigen::Matrix<PixelT, Eigen::Dynamic, 1> dataMatrix(_paramTracker.nRows(), 1);
-    auto img = _exposure.getMaskedImage().getImage();
+    auto img = _exposure.getMaskedImage();
     int * pixelId;
 
-    for (int y = 0; y != img->getHeight(); ++y) {
-        for (auto ptr = img->row_begin(y), end = img->row_end(y), x = 0; ptr != end; ++ptr, ++x) {
+    for (int y = 0; y != img.getHeight(); ++y) {
+        for (auto pixel_ptr = img.row_begin(y), end = img.row_end(y), x = 0; pixel_ptr != end; ++pixel_ptr, ++x) {
 
             pixelId = _paramTracker.getPixelId(x, y);
             if(pixelId == NULL) {
                 continue;
             }
-            dataMatrix(*pixelId, 0) = *ptr;
+            dataMatrix(*pixelId, 0) = pixel_ptr.image()/pow(pixel_ptr.variance(), 2);
         }
     }
     return dataMatrix;

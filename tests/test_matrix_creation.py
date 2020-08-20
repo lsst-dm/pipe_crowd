@@ -32,6 +32,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         psfTask = InstallGaussianPsfTask(config=psfConfig)
         psfTask.run(exposure=self.exposure)
 
+        variance_image = self.exposure.getMaskedImage().getVariance()
+        variance_image += 50
+
     def test_singleSource(self):
 
         matrix = CrowdedFieldMatrix(self.exposure,
@@ -107,6 +110,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         psfTask = InstallGaussianPsfTask(config=psfConfig)
         psfTask.run(exposure=exposure)
 
+        variance_image = exposure.getMaskedImage().getVariance()
+        variance_image += 50
+
         add_psf_image(exposure, 200.0, 400.0, 600.0)
         add_psf_image(exposure, 210.0, 210.0, 300.0)
         # These last two are to catch edge effects.
@@ -129,6 +135,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         psfConfig.fwhm = 4
         psfTask = InstallGaussianPsfTask(config=psfConfig)
         psfTask.run(exposure=exposure)
+
+        variance_image = exposure.getMaskedImage().getVariance()
+        variance_image += 50
 
         add_psf_image(exposure, 200.0, 400.0, 600.0)
         add_psf_image(exposure, 210.0, 210.0, 300.0)
@@ -156,6 +165,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         psfTask = InstallGaussianPsfTask(config=psfConfig)
         psfTask.run(exposure=exposure)
 
+        variance_image = exposure.getMaskedImage().getVariance()
+        variance_image += 50
+
         add_psf_image(exposure, 200.0, 400.0, 600.0)
         add_psf_image(exposure, 210.0, 210.0, 300.0)
 
@@ -180,6 +192,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         psfTask = InstallGaussianPsfTask(config=psfConfig)
         psfTask.run(exposure=exposure)
 
+        variance_image = exposure.getMaskedImage().getVariance()
+        variance_image += 50
+
         self.add_psf_image(exposure, 200.0, 400.0, 600.0)
         self.add_psf_image(exposure, 210.0, 210.0, 300.0)
 
@@ -198,6 +213,9 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         psfConfig.fwhm = 4
         psfTask = InstallGaussianPsfTask(config=psfConfig)
         psfTask.run(exposure=exposure)
+
+        variance_image = exposure.getMaskedImage().getVariance()
+        variance_image += 100
 
         add_psf_image(exposure, 200.0, 200.0, 600.0)
         # exposure.image.array += 20*np.random.randn(*exposure.image.array.shape)
