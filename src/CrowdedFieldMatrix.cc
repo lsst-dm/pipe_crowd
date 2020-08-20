@@ -148,11 +148,11 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
             int pixelIndex = _paramTracker.makePixelId(psfImage->indexToPosition(x, afw::image::X),
                                                        psfImage->indexToPosition(y, afw::image::Y));
             int paramIndex = _paramTracker.getSourceParameterId(nStar, 0);
-            matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue/pow(varianceValue, 2)));
+            matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue/varianceValue));
 
             if(_fitCentroids && (x + pixelShift_dx >= 0) && (x + pixelShift_dx < psfImage->getWidth())) {
                 PixelT psfValue_dx = psfImage->get(geom::Point2I(x + pixelShift_dx, y), afw::image::LOCAL);
-                PixelT deriv_x = estFlux/pow(varianceValue, 2) * (psfValue - psfValue_dx)/pixelNudge;
+                PixelT deriv_x = estFlux/varianceValue * (psfValue - psfValue_dx)/pixelNudge;
 
                 int paramIndex = _paramTracker.getSourceParameterId(nStar, 1);
                 matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_x));
@@ -160,7 +160,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 
             if(_fitCentroids && (y + pixelShift_dy >= 0) && (y + pixelShift_dy < psfImage->getHeight())) {
                 PixelT psfValue_dy = psfImage->get(geom::Point2I(x, y + pixelShift_dy), afw::image::LOCAL);
-                PixelT deriv_y = estFlux /pow(varianceValue, 2)* (psfValue - psfValue_dy)/pixelNudge;
+                PixelT deriv_y = estFlux/varianceValue * (psfValue - psfValue_dy)/pixelNudge;
 
                 int paramIndex = _paramTracker.getSourceParameterId(nStar, 2);
                 matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, deriv_y));
@@ -198,7 +198,7 @@ const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeD
             if(pixelId == NULL) {
                 continue;
             }
-            dataMatrix(*pixelId, 0) = pixel_ptr.image()/pow(pixel_ptr.variance(), 2);
+            dataMatrix(*pixelId, 0) = pixel_ptr.image()/pixel_ptr.variance();
         }
     }
     return dataMatrix;

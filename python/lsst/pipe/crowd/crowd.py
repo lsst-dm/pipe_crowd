@@ -100,7 +100,7 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         exposure = sensorRef.get("calexp")
 
         result = self.run(exposure)
-        if(result.source_catalog is None):
+        if(result is None or result.source_catalog is None):
             return
 
         sensorRef.put(result.source_catalog, "crowdedsrc")
@@ -185,10 +185,6 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         self.log.info("Final source catalog length: %d", len(source_catalog))
 
         # Subtract in-place
-        self.modelImageTask.makeModelSubtractedImage(exposure,
-                                                     source_catalog,
-                                                     self.simultaneousPsfFlux_key)
-
         model_image = self.modelImageTask.run(exposure, source_catalog,
                                               self.simultaneousPsfFlux_key)
 
