@@ -8,6 +8,7 @@ import lsst.afw.image as afwImage
 import lsst.afw.geom as afwGeom
 from lsst.geom import Extent2I
 import lsst.afw.detection as afwDetection
+from lsst.utils.timer import timeMethod
 
 from lsst.meas.base import SdssCentroidAlgorithm, SdssCentroidControl
 from lsst.meas.base import MeasurementError
@@ -34,7 +35,7 @@ class CrowdedCentroidTask(pipeBase.Task):
                                                   schema)
         self.makeSubtask("modelImage")
 
-    @pipeBase.timeMethod
+    @timeMethod
     def run(self, exposure, catalog, flux_key):
 
         subtracted_exposure = afwImage.ExposureF(exposure, deep=True)

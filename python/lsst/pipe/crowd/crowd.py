@@ -7,12 +7,49 @@ import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
 from lsst.meas.algorithms import SourceDetectionTask, SourceDetectionConfig
 from lsst.pipe.base import ArgumentParser
+import lsst.pipe.base.connectionTypes as cT
+from lsst.utils.timer import timeMethod
+
 
 from .crowdedFieldMatrix import CrowdedFieldMatrix
 from .modelImage import ModelImageTask, ModelImageTaskConfig
 from .centroid import CrowdedCentroidTask, CrowdedCentroidTaskConfig
 
-class CrowdedFieldTaskConfig(pexConfig.Config):
+
+class CrowdedFieldConnections(pipeBase.PipelineTaskConnections, dimensions=("instrument", "visit",
+                                                                            "detector"),
+                              defaultTemplates={}):
+
+    calexp = cT.Input(
+        doc="Input image to measure.",
+        name="calexp",
+        storageClass="ExposureF",
+        dimensions=("instrument", "visit", "detector"),
+    )
+
+    crowdedFieldCat = cT.Output(
+        doc="Output catalog from simultaneous fitting.",
+        name="pipeCrowd_src",
+        storageClass="SourceCatalog",
+        dimensions=("instrument", "visit", "detector")
+    )
+
+    crowdedFieldModel = cT.Output(
+        doc="Model image from sources measured in simultaneous fitting.",
+        name="pipeCrowd_model",
+        storageClass="ExposureF",
+        dimensions=("instrument", "visit", "detector")
+    )
+
+    crowdedFieldResidual = cT.Output(
+        doc="Residual image after subtracting sources.",
+        name="pipeCrowd_residual",
+        storageClass="ExposureF",
+        dimensions=("instrument", "visit", "detector")
+    )
+
+
+class CrowdedFieldTaskConfig(pipeBase.PipelineTaskConfig, pipelineConnections=CrowdedFieldConnections):
     """Config for CrowdedFieldTask"""
 
     centroid = pexConfig.ConfigurableField(
@@ -54,30 +91,18 @@ class CrowdedFieldTaskConfig(pexConfig.Config):
            raise ValueError("fitSimultaneousPositions not currently supported.")
 
 
-class CrowdedFieldTask(pipeBase.CmdLineTask):
+
+class CrowdedFieldTask(pipeBase.PipelineTask):
     ConfigClass = CrowdedFieldTaskConfig
-    RunnerClass = pipeBase.TaskRunner
+    # RunnerClass = pipeBase.TaskRunner
     _DefaultName = "crowdedFieldTask"
-
-    def _getConfigName(self):
-        return None
-
-    def _getMetadataName(self):
-        return None
-
-    @classmethod
-    def _makeArgumentParser(cls):
-        parser = ArgumentParser(name=cls._DefaultName)
-        parser.add_id_argument(name="--id", datasetType="calexp",
-                               help="data IDs, e.g. --id visit=12345 ccd=1,2^0,3")
-        return parser
 
     def setDefaults(self):
         super().setDefaults()
         self.detection.thresholdPolarity = "positive"
 
     def __init__(self, **kwargs):
-        pipeBase.CmdLineTask.__init__(self, **kwargs)
+        pipeBase.PipelineTask.__init__(self, **kwargs)
         self.schema = afwTable.SourceTable.makeMinimalSchema()
         self.simultaneousPsfFlux_key = self.schema.addField(
             "crowd_psfFlux_flux_instFlux", type=np.float64,
@@ -94,20 +119,13 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         self.makeSubtask("centroid", schema=self.schema)
         self.makeSubtask("modelImageTask")
 
-    @pipeBase.timeMethod
-    def runDataRef(self, sensorRef):
+    def runQuantum(self, butlerQC, inputRefs, outputRefs):
+        inputs = butlerQC.get(inputRefs)
+        outputs = self.run(inputs['calexp'])
+        if(outputs is not None):
+            butlerQC.put(outputs, outputRefs)
 
-        exposure = sensorRef.get("calexp")
-
-        result = self.run(exposure)
-        if(result is None or result.source_catalog is None):
-            return
-
-        sensorRef.put(result.source_catalog, "crowdedsrc")
-        sensorRef.put(exposure, "subtractedimg")
-        sensorRef.put(result.model_image, "modelimg")
-
-    @pipeBase.timeMethod
+    @timeMethod
     def run(self, exposure):
 
         source_catalog = afwTable.SourceCatalog(self.schema)
@@ -188,7 +206,10 @@ class CrowdedFieldTask(pipeBase.CmdLineTask):
         model_image = self.modelImageTask.run(exposure, source_catalog,
                                               self.simultaneousPsfFlux_key)
 
-        return pipeBase.Struct(source_catalog=source_catalog,
-                               model_image=model_image)
+        model_exposure = afwImage.ExposureF(model_image, wcs=exposure.getWcs())
+
+        return pipeBase.Struct(crowdedFieldCat=source_catalog,
+                               crowdedFieldResidual=exposure,
+                               crowdedFieldModel=model_exposure)
 
 

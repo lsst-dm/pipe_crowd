@@ -4,6 +4,7 @@ import lsst.pex.config as pexConfig
 import lsst.pipe.base as pipeBase
 import lsst.afw.table as afwTable
 import lsst.afw.image as afwImage
+from lsst.utils.timer import timeMethod
 
 from contextlib import contextmanager
 
@@ -17,7 +18,7 @@ class ModelImageTask(pipeBase.Task):
     _DefaultName = "modelImageTask"
 
 
-    @pipeBase.timeMethod
+    @timeMethod
     def run(self, exposure, catalog, catalog_key):
 
         model_image = afwImage.MaskedImageF(exposure.getMaskedImage(),
@@ -39,7 +40,7 @@ class ModelImageTask(pipeBase.Task):
         original_image -= model_image
         return model_image
 
-    @pipeBase.timeMethod
+    @timeMethod
     def makeModelSubtractedImage(self, exposure, catalog, catalog_key):
 
         subtracted_image = afwImage.MaskedImageF(exposure.getMaskedImage(),
