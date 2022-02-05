@@ -217,6 +217,8 @@ class CrowdedFieldMatrixTestCase(lsst.utils.tests.TestCase):
         variance_image = exposure.getMaskedImage().getVariance()
         variance_image += 100
 
+        exposure.getMaskedImage().getVariance().getArray()[203, 203] = np.nan
+
         add_psf_image(exposure, 200.0, 200.0, 600.0)
         # exposure.image.array += 20*np.random.randn(*exposure.image.array.shape)
 

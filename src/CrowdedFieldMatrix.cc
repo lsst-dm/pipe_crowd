@@ -109,7 +109,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
     int pixelShift_dx, pixelShift_dy;
     Mask<MaskPixel> psfShapedMask;
     Image<VariancePixel> psfShapedVariance;
-    MaskPixel maskFlagsForRejection = Mask<MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR"});
+    MaskPixel maskFlagsForRejection = Mask<MaskPixel>::getPlaneBitMask({"SAT", "BAD", "EDGE", "CR", "INTRP"});
     geom::Box2I clippedBBox;
 
     psfImage = exposure.getPsf()->computeImage(geom::Point2D(x, y));
@@ -132,6 +132,8 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
 
     _paramTracker.addSource(nStar);
 
+    int n_entries = 0;
+
     for (int y = 0; y != clippedBBox.getHeight(); ++y) {
         for (int x = 0; x != clippedBBox.getWidth(); ++x) {
 
@@ -144,11 +146,20 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
             VariancePixel varianceValue;
             varianceValue = psfShapedVariance.get(geom::Point2I(x,y), afw::image::LOCAL);
 
+            if(!isfinite(1/varianceValue)) {
+                continue;
+            }
+
             PixelT psfValue = psfImage->get(geom::Point2I(x, y), afw::image::LOCAL);
-            int pixelIndex = _paramTracker.makePixelId(psfImage->indexToPosition(x, afw::image::X),
-                                                       psfImage->indexToPosition(y, afw::image::Y));
+
+            int pixelIndex = _paramTracker.makePixelId(psfShapedVariance.indexToPosition(x, afw::image::X),
+                                                       psfShapedVariance.indexToPosition(y, afw::image::Y));
+
+
             int paramIndex = _paramTracker.getSourceParameterId(nStar, 0);
+
             matrixEntries.push_back(Eigen::Triplet<PixelT>(pixelIndex, paramIndex, psfValue/varianceValue));
+            n_entries += 1;
 
             if(_fitCentroids && (x + pixelShift_dx >= 0) && (x + pixelShift_dx < psfImage->getWidth())) {
                 PixelT psfValue_dx = psfImage->get(geom::Point2I(x + pixelShift_dx, y), afw::image::LOCAL);
@@ -167,6 +178,9 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
             }
 
         }
+    }
+    if(n_entries == 0) {
+        LOGL_WARN(_log, "No parameters added for source");
     }
 }
 
@@ -191,6 +205,8 @@ const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeD
     auto img = _exposure.getMaskedImage();
     int * pixelId;
 
+    int inf_pixel=0;
+    int inf_var=0;
     for (int y = 0; y != img.getHeight(); ++y) {
         for (auto pixel_ptr = img.row_begin(y), end = img.row_end(y), x = 0; pixel_ptr != end; ++pixel_ptr, ++x) {
 
@@ -199,7 +215,14 @@ const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeD
                 continue;
             }
             dataMatrix(*pixelId, 0) = pixel_ptr.image()/pixel_ptr.variance();
+
+            if(!isfinite(pixel_ptr.image())) { inf_pixel += 1; };
+            if(!isfinite(pixel_ptr.variance())) { inf_var += 1; };
+
         }
+    }
+    if((inf_pixel > 0) || (inf_var > 0)) {
+        LOGL_WARN(_log, "%d non-finite pixels, %d non-finite variance values in matrix", inf_pixel, inf_var);
     }
     return dataMatrix;
 }

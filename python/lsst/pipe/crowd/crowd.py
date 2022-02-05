@@ -176,9 +176,10 @@ class CrowdedFieldTask(pipeBase.PipelineTask):
 
             solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
                                                self.simultaneousPsfFlux_key)
+
             status = solver_matrix.solve()
             if(status != solver_matrix.SUCCESS):
-                self.log.error(f"Matrix solution failed on iteration {detection_round}")
+                self.log.error(f"Matrix solution failed on iteration {detection_round} solve 1")
                 return None
 
             source_catalog.schema.getAliasMap().set("slot_Centroid",
@@ -197,7 +198,8 @@ class CrowdedFieldTask(pipeBase.PipelineTask):
                                                self.simultaneousPsfFlux_key)
             status = solver_matrix.solve()
             if(status != solver_matrix.SUCCESS):
-                self.log.error(f"Matrix solution failed on iteration {detection_round}")
+                self.log.error(f"Matrix solution failed on iteration {detection_round} solve 2")
+                raise RuntimeError(f"Matrix solution failed on iteration {detection_round} solve 2")
                 return None
 
         self.log.info("Final source catalog length: %d", len(source_catalog))
