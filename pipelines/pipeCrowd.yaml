@@ -1,0 +1,4 @@
+description: Crowded field processing.
+tasks:
+      crowdedField:  lsst.pipe.crowd.CrowdedFieldTask
+
