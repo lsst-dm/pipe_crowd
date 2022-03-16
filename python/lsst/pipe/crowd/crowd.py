@@ -237,6 +237,9 @@ class CrowdedFieldTask(pipeBase.PipelineTask):
 
         self.log.info("Final source catalog length: %d", len(source_catalog))
 
+        # Fill-in coord_ra/coord_dec
+        afwTable.updateSourceCoords(exposure.getWcs(), sourceList=source_catalog)
+
         # Subtract in-place
         model_image = self.modelImageTask.run(exposure, source_catalog,
                                               self.simultaneousPsfFlux_key)
