@@ -10,6 +10,8 @@ from lsst.pipe.base import ArgumentParser
 import lsst.pipe.base.connectionTypes as cT
 from lsst.utils.timer import timeMethod
 
+from scipy.spatial import cKDTree
+
 
 from .crowdedFieldMatrix import CrowdedFieldMatrix
 from .modelImage import ModelImageTask, ModelImageTaskConfig
@@ -83,6 +85,12 @@ class CrowdedFieldTaskConfig(pipeBase.PipelineTaskConfig, pipelineConnections=Cr
         dtype=bool,
         default=False,
         doc="Include the source positions when fitting for fluxes?",
+    )
+
+    minCentroidSeparation = pexConfig.Field(
+        dtype=float,
+        default=1.0,
+        doc="Filter sources before fitting so that none have separation less than minCentroidSeparation",
     )
 
     def validate(self):
@@ -193,9 +201,34 @@ class CrowdedFieldTask(pipeBase.PipelineTask):
             source_catalog.schema.getAliasMap().set("slot_Centroid",
                                                     "centroid")
 
+            # Delete sources with centroids that are too close together.
+            # This is pretty ad hoc.
+            centroid_tree = cKDTree(np.stack([source_catalog['centroid_x'], source_catalog['centroid_y']], axis=1))
+
+            # TODO: better handle the case of three+ sources inside the matching radius.
+            records_to_delete = set(j for (i,j) in centroid_tree.query_pairs(self.config.minCentroidSeparation))
+            if(len(records_to_delete) == 0):
+                self.log.info("No overlapping sources to delete.")
+            else:
+                self.log.info("Deleting overlaping sources: " +  ", ".join(f"{x:d}" for x in records_to_delete))
+
+                for n in sorted(list(records_to_delete), reverse=True):
+                    del source_catalog[n]
+
+                source_catalog = source_catalog.copy(deep=True)
+
+
+            double_check_for_pairs = True
+            if double_check_for_pairs:
+                centroid_tree = cKDTree(np.stack([source_catalog['centroid_x'], source_catalog['centroid_y']], axis=1))
+                remaining_pairs = set(j for (i,j) in centroid_tree.query_pairs(self.config.minCentroidSeparation))
+                if(len(remaining_pairs) > 0):
+                    self.log.warn("Close-pairs remain after filtering: " +  ", ".join(f"{x:d}" for x in remaining_pairs))
+
             # Now that we have more precise centroids, re-fit the fluxes
             solver_matrix = CrowdedFieldMatrix(exposure, source_catalog,
                                                self.simultaneousPsfFlux_key)
+
             status = solver_matrix.solve()
             if(status != solver_matrix.SUCCESS):
                 self.log.error(f"Matrix solution failed on iteration {detection_round} solve 2")
