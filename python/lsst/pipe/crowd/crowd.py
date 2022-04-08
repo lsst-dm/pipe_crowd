@@ -201,6 +201,13 @@ class CrowdedFieldTask(pipeBase.PipelineTask):
             source_catalog.schema.getAliasMap().set("slot_Centroid",
                                                     "centroid")
 
+            # Sometimes centroiding results in nans, which break cKDTree
+            for n in range(len(source_catalog))[::-1]:
+                if((not np.isfinite(source_catalog[n]['centroid_x'])) or
+                   (not np.isfinite(source_catalog[n]['centroid_y']))):
+                    del source_catalog[n]
+
+            source_catalog = source_catalog.copy(deep=True)
             # Delete sources with centroids that are too close together.
             # This is pretty ad hoc.
             centroid_tree = cKDTree(np.stack([source_catalog['centroid_x'], source_catalog['centroid_y']], axis=1))
