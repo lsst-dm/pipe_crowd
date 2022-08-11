@@ -51,13 +51,13 @@ class CrowdedCentroidTask(pipeBase.Task):
                 spanSet = spanSet.shiftedBy(Extent2I(source.getCentroid()))
                 footprint = afwDetection.Footprint(spanSet)
                 peak = footprint.peaks.addNew()
-                peak.setFx(source.getCentroid().getX())
-                peak.setFy(source.getCentroid().getY())
+                peak.setFx(int(source['slot_Centroid_x']))
+                peak.setFy(int(source['slot_Centroid_y']))
 
                 # Check for NaNs
                 if(source.getCentroid().getX() == source.getCentroid().getX()):
-                    peak.setIx(int(source.getCentroid().getX()))
-                    peak.setIy(int(source.getCentroid().getY()))
+                    peak.setIx(int(source['slot_Centroid_x']))
+                    peak.setIy(int(source['slot_Centroid_y']))
                 source.setFootprint(footprint)
 
                 try:
