@@ -105,10 +105,6 @@ class CrowdedFieldTask(pipeBase.PipelineTask):
     # RunnerClass = pipeBase.TaskRunner
     _DefaultName = "crowdedFieldTask"
 
-    def setDefaults(self):
-        super().setDefaults()
-        self.detection.thresholdPolarity = "positive"
-
     def __init__(self, **kwargs):
         pipeBase.PipelineTask.__init__(self, **kwargs)
         self.schema = afwTable.SourceTable.makeMinimalSchema()
@@ -166,18 +162,21 @@ class CrowdedFieldTask(pipeBase.PipelineTask):
 
             for source in detRes.sources:
                 for peak in source.getFootprint().peaks:
-
-                    # If this is round >=2, short circuit on insignificant
-                    # peaks.
-                    if model_image is not None:
-                        # Add a 1e-6 epsilon to prevent divide-by-zero
-                        model_sig = model_significance_image.getImage()[peak.getF()] + 1e-6
-                        value_ratio = peak.getPeakValue()/model_sig
-                        if(value_ratio < self.config.peak_significance_cutoff):
-                            continue
-                    child = source_catalog.addNew()
-                    child['coarse_centroid_x'] = peak.getFx()
-                    child['coarse_centroid_y'] = peak.getFy()
+                    
+                    # Avoid peaks in bad (=interpolated) pixels 
+                    if residual_exposure.getMaskedImage().getMask().array[int(peak.getFy()),int(peak.getFx())]&(2**2) != 4:
+                     
+                        # If this is round >=2, short circuit on insignificant
+                        # peaks.
+                        if model_image is not None:
+                            # Add a 1e-6 epsilon to prevent divide-by-zero
+                            model_sig = model_significance_image.getImage()[peak.getF()] + 1e-6
+                            value_ratio = peak.getPeakValue()/model_sig
+                            if(value_ratio < self.config.peak_significance_cutoff):
+                                continue
+                        child = source_catalog.addNew()
+                        child['coarse_centroid_x'] = peak.getFx()
+                        child['coarse_centroid_y'] = peak.getFy()
 
             self.log.info("Source catalog length after detection round %d: %d",
                           detection_round, len(source_catalog))
