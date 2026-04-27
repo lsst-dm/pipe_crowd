@@ -1,4 +1,6 @@
 
+#include <cmath>
+
 #include "lsst/base.h"
 #include "lsst/afw/table/Exposure.h"
 #include "lsst/afw/table/Key.h"
@@ -146,7 +148,7 @@ void CrowdedFieldMatrix<PixelT>::_addSource(const afw::image::Exposure<PixelT> &
             VariancePixel varianceValue;
             varianceValue = psfShapedVariance.get(geom::Point2I(x,y), afw::image::LOCAL);
 
-            if(!isfinite(1/varianceValue)) {
+            if(!std::isfinite(1/varianceValue)) {
                 continue;
             }
 
@@ -216,8 +218,8 @@ const Eigen::Matrix<PixelT, Eigen::Dynamic, 1> CrowdedFieldMatrix<PixelT>::makeD
             }
             dataMatrix(*pixelId, 0) = pixel_ptr.image()/pixel_ptr.variance();
 
-            if(!isfinite(pixel_ptr.image())) { inf_pixel += 1; };
-            if(!isfinite(pixel_ptr.variance())) { inf_var += 1; };
+            if(!std::isfinite(pixel_ptr.image())) { inf_pixel += 1; };
+            if(!std::isfinite(pixel_ptr.variance())) { inf_var += 1; };
 
         }
     }
